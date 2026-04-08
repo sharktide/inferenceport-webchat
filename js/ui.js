@@ -1,0 +1,306 @@
+// ui.js — notifications, context menus, markdown, shared DOM helpers
+
+// ── Notifications ─────────────────────────────────────────────────────────
+
+export function showNotification({ type = 'info', message, action, duration = 5000 }) {
+  const container = document.getElementById('notifications');
+  if (!container) return;
+
+  const el = document.createElement('div');
+  el.className = `notification ${type}`;
+
+  const text = document.createElement('span');
+  text.style.flex = '1';
+  text.textContent = message;
+  el.appendChild(text);
+
+  if (action) {
+    const btn = document.createElement('button');
+    btn.textContent = action.label;
+    btn.style.cssText = 'margin-left:10px;color:var(--yellow);font-size:12px;font-weight:600;white-space:nowrap;';
+    btn.addEventListener('click', () => { action.onClick?.(); el.remove(); });
+    el.appendChild(btn);
+  }
+
+  const close = document.createElement('button');
+  close.className = 'notif-close';
+  close.textContent = '×';
+  close.addEventListener('click', () => el.remove());
+  el.appendChild(close);
+
+  container.appendChild(el);
+  if (duration > 0) setTimeout(() => el.remove(), duration);
+  return el;
+}
+
+// ── Context menu ──────────────────────────────────────────────────────────
+
+let activeMenu = null;
+let menuDocHandler = null;
+
+export function showContextMenu(x, y, items) {
+  closeContextMenu();
+
+  const menu = document.getElementById('session-context-menu');
+  menu.innerHTML = '';
+
+  for (const item of items) {
+    if (item.separator) {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'height:1px;background:var(--border);margin:3px 0;';
+      menu.appendChild(sep);
+      continue;
+    }
+    const el = document.createElement('div');
+    el.className = 'context-item' + (item.danger ? ' danger' : '') + (item.warning ? ' warning' : '');
+    if (item.icon) {
+      const ic = document.createElement('span');
+      ic.textContent = item.icon;
+      ic.style.fontSize = '14px';
+      el.appendChild(ic);
+    }
+    const label = document.createElement('span');
+    label.textContent = item.label;
+    el.appendChild(label);
+    el.addEventListener('click', (e) => { e.stopPropagation(); closeContextMenu(); item.onClick?.(); });
+    menu.appendChild(el);
+  }
+
+  menu.classList.remove('hidden');
+  const rect = menu.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let left = x, top = y;
+  if (left + rect.width > vw - 8)  left = vw - rect.width - 8;
+  if (top  + rect.height > vh - 8) top  = y - rect.height;
+  if (top < 8) top = 8;
+  menu.style.left = `${left}px`;
+  menu.style.top  = `${top}px`;
+
+  activeMenu = menu;
+  queueMicrotask(() => {
+    menuDocHandler = (e) => {
+      if (!menu.contains(e.target)) closeContextMenu();
+    };
+    document.addEventListener('click', menuDocHandler);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeContextMenu(); }, { once: true });
+  });
+}
+
+export function showUserMenu(x, y, items) {
+  const menu = document.getElementById('user-context-menu');
+  menu.innerHTML = '';
+  for (const item of items) {
+    const el = document.createElement('div');
+    el.className = 'context-item' + (item.danger ? ' danger' : '');
+    el.textContent = item.label;
+    el.addEventListener('click', () => { menu.classList.add('hidden'); item.onClick?.(); });
+    menu.appendChild(el);
+  }
+  menu.classList.remove('hidden');
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const rect = menu.getBoundingClientRect();
+  let left = x, top = y;
+  if (left + rect.width > vw - 8) left = vw - rect.width - 8;
+  if (top + rect.height > vh - 8) top = y - rect.height;
+  menu.style.left = `${left}px`;
+  menu.style.top  = `${top}px`;
+  setTimeout(() => {
+    document.addEventListener('click', (e) => {
+      if (!menu.contains(e.target)) menu.classList.add('hidden');
+    }, { once: true });
+  }, 0);
+}
+
+export function closeContextMenu() {
+  activeMenu?.classList.add('hidden');
+  activeMenu = null;
+  if (menuDocHandler) { document.removeEventListener('click', menuDocHandler); menuDocHandler = null; }
+}
+
+// ── Markdown rendering ────────────────────────────────────────────────────
+
+// Store code snippets by a key so copy button can reference them
+const codeStore = new Map();
+let codeStoreCounter = 0;
+
+function buildMarkdownOptions() {
+  const renderer = new marked.Renderer();
+
+  renderer.code = (code, lang) => {
+    // Store the raw code and generate a unique key for the copy button
+    const key = `code-${++codeStoreCounter}`;
+    codeStore.set(key, typeof code === 'object' ? (code.text || '') : code);
+
+    const rawCode = typeof code === 'object' ? (code.text || '') : code;
+    const rawLang = typeof code === 'object' ? (code.lang || lang || 'code') : (lang || 'code');
+
+    const escapedCode = escHtml(rawCode);
+    const displayLang = rawLang || 'code';
+
+    if (rawLang === 'svg') {
+      return `<div class="svg-render-block" data-svg="${escAttr(rawCode)}">
+        <img src="data:image/svg+xml,${encodeURIComponent(rawCode)}" style="max-width:100%;cursor:pointer;" alt="SVG">
+      </div>`;
+    }
+    return `<div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">${escHtml(displayLang)}</span>
+        <button class="code-copy-btn" data-code-key="${escAttr(key)}">Copy</button>
+      </div>
+      <pre><code class="language-${escHtml(displayLang)}">${escapedCode}</code></pre>
+    </div>`;
+  };
+
+  // Override inline code to NOT apply background inside code blocks
+  // (the .code-block pre code rule in CSS handles this)
+  renderer.codespan = (code) => {
+    const raw = typeof code === 'object' ? (code.text || '') : code;
+    return `<code class="inline-code">${escHtml(raw)}</code>`;
+  };
+
+  renderer.link = (href, title, text) => {
+    const hrefStr = typeof href === 'object' ? (href.href || '') : (href || '');
+    const titleStr = typeof title === 'string' ? title : '';
+    const textStr = typeof text === 'string' ? text : '';
+    const safeHref = escHtml(hrefStr);
+    return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" title="${escHtml(titleStr)}">${textStr}</a>`;
+  };
+
+  return { renderer, breaks: true, gfm: true };
+}
+
+export function renderMarkdown(text) {
+  if (!text) return '';
+  try {
+    marked.setOptions(buildMarkdownOptions());
+    const raw = marked.parse(text);
+    const clean = DOMPurify.sanitize(raw, {
+      ALLOWED_TAGS: [
+        'p','br','strong','em','del','u','s','h1','h2','h3','h4','h5','h6',
+        'ul','ol','li','blockquote','hr','table','thead','tbody','tr','th','td',
+        'pre','code','a','img','span','div','details','summary','button',
+      ],
+      ALLOWED_ATTR: ['href','src','alt','title','class','data-code','data-code-key','data-svg','data-color',
+        'target','rel','style','open','align','type','aria-label'],
+      ALLOW_DATA_ATTR: true,
+    });
+    return clean;
+  } catch (e) {
+    return escHtml(text);
+  }
+}
+
+export function attachCodeCopyListeners(container) {
+  container.querySelectorAll('.code-copy-btn').forEach(btn => {
+    // Remove any existing listeners by cloning the button
+    const fresh = btn.cloneNode(true);
+    btn.parentNode?.replaceChild(fresh, btn);
+
+    fresh.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      // Try data-code-key first (new approach), then data-code (legacy)
+      const key = fresh.getAttribute('data-code-key');
+      let code = '';
+      if (key && codeStore.has(key)) {
+        code = codeStore.get(key);
+      } else {
+        // Fallback: grab text from the sibling <pre><code>
+        const pre = fresh.closest('.code-block')?.querySelector('pre code');
+        if (pre) code = pre.textContent || '';
+      }
+
+      try {
+        await navigator.clipboard.writeText(code);
+        fresh.textContent = 'Copied!';
+        setTimeout(() => fresh.textContent = 'Copy', 1400);
+      } catch {
+        // Fallback for environments where clipboard API is unavailable
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = code;
+          ta.style.cssText = 'position:fixed;opacity:0;';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          fresh.textContent = 'Copied!';
+          setTimeout(() => fresh.textContent = 'Copy', 1400);
+        } catch {
+          fresh.textContent = 'Error';
+          setTimeout(() => fresh.textContent = 'Copy', 1400);
+        }
+      }
+    });
+  });
+}
+
+export function attachSvgPanelListeners(container) {
+  container.querySelectorAll('.svg-render-block img').forEach(img => {
+    img.addEventListener('click', () => {
+      const svgCode = img.closest('.svg-render-block')?.getAttribute('data-svg') || '';
+      openSvgPanel(svgCode);
+    });
+  });
+}
+
+function openSvgPanel(svgCode) {
+  let panel = document.getElementById('svg-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'svg-panel';
+    panel.innerHTML = `
+      <div id="svg-panel-header">
+        <span style="font-size:13px;font-weight:600;">SVG Preview</span>
+        <div style="display:flex;gap:6px">
+          <button id="svg-toggle-btn" style="font-size:11px;padding:3px 8px;border-radius:4px;border:1px solid var(--border-bright);background:var(--bg-hover)">XML</button>
+          <button id="svg-close-btn" style="color:var(--text-muted);font-size:18px;padding:0 4px;">×</button>
+        </div>
+      </div>
+      <div id="svg-panel-content"></div>`;
+    document.body.appendChild(panel);
+  }
+  const content = document.getElementById('svg-panel-content');
+  const toggleBtn = document.getElementById('svg-toggle-btn');
+  const closeBtn  = document.getElementById('svg-close-btn');
+
+  let showingXml = false;
+  const renderImg = () => {
+    content.innerHTML = `<img src="data:image/svg+xml,${encodeURIComponent(svgCode)}" style="max-width:100%;" alt="SVG">`;
+  };
+  renderImg();
+
+  toggleBtn.onclick = () => {
+    showingXml = !showingXml;
+    toggleBtn.textContent = showingXml ? 'Image' : 'XML';
+    if (showingXml) {
+      content.innerHTML = `<pre style="font-size:12px;white-space:pre-wrap;word-break:break-all;padding:8px;background:var(--bg-raised);border-radius:6px;">${escHtml(svgCode)}</pre>`;
+    } else renderImg();
+  };
+  closeBtn.onclick = () => panel.remove();
+}
+
+// ── Textarea auto-resize ───────────────────────────────────────────────────
+
+export function autoResize(textarea, maxLines = 6) {
+  const lh = parseFloat(getComputedStyle(textarea).lineHeight) || 22;
+  const pad = parseFloat(getComputedStyle(textarea).paddingTop || '0')
+            + parseFloat(getComputedStyle(textarea).paddingBottom || '0');
+  textarea.style.height = 'auto';
+  const max = lh * maxLines + pad;
+  textarea.style.height = Math.min(textarea.scrollHeight, max) + 'px';
+  textarea.style.overflowY = textarea.scrollHeight > max ? 'auto' : 'hidden';
+}
+
+// ── Escape helpers ────────────────────────────────────────────────────────
+
+export function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+export function escAttr(str) {
+  return String(str).replace(/"/g,'&quot;');
+}
+
+window.ui = { showNotification, showContextMenu, showUserMenu, renderMarkdown };

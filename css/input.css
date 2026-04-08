@@ -1,0 +1,413 @@
+/* ── Center (welcome) input ──────────────────────────────────────────────── */
+.center-input-container {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-xl);
+  padding: 12px 14px 10px;
+  gap: 10px;
+  box-shadow: var(--shadow-md);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.center-input-container:focus-within {
+  border-color: rgba(74,158,255,0.4);
+  box-shadow: var(--shadow-glow-blue);
+}
+
+.center-textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.55;
+  min-height: 26px;
+  max-height: calc(1.55em * 6 + 24px);
+  overflow-y: auto;
+  padding: 0 4px;
+}
+.center-textarea::placeholder { color: var(--text-muted); }
+
+.center-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tool-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  transition: color var(--transition), background var(--transition);
+}
+.tool-btn:hover { color: var(--text); background: var(--bg-hover); }
+.tool-btn.active { color: var(--yellow); background: var(--yellow-glow); }
+
+.send-btn-center {
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--yellow); color: #111;
+  margin-left: auto;
+  transition: opacity var(--transition), transform var(--transition);
+  flex-shrink: 0;
+}
+.send-btn-center:hover { opacity: 0.88; transform: scale(1.05); }
+.send-btn-center:disabled { opacity: 0.4; transform: none; }
+
+/* Attach btn beside center input */
+.attach-btn-wrap {
+  display: flex;
+  align-items: flex-end;
+}
+.attach-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 50%;
+  color: var(--text-muted);
+  border: 1px solid var(--border-bright);
+  transition: color var(--transition), background var(--transition);
+}
+.attach-btn:hover { color: var(--text); background: var(--bg-hover); }
+
+/* ── Bottom input bar ────────────────────────────────────────────────────── */
+.bottom-input-bar {
+  flex-shrink: 0;
+  padding: 0 24px 4px;
+}
+
+.file-preview-row {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 0 0 8px;
+  max-width: 760px; margin: 0 auto;
+}
+
+.bottom-input-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 760px;
+  margin: 0 auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-xl);
+  padding: 8px 10px;
+  box-shadow: var(--shadow-md);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.bottom-input-wrap:focus-within {
+  border-color: rgba(74,158,255,0.4);
+  box-shadow: var(--shadow-glow-blue);
+}
+
+.attach-btn-bottom {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 50%;
+  color: var(--text-muted);
+  border: 1px solid var(--border-bright);
+  margin-bottom: 4px;
+  transition: color var(--transition), background var(--transition);
+}
+.attach-btn-bottom:hover { color: var(--text); background: var(--bg-hover); }
+
+.bottom-textarea-wrap {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 6px;
+}
+
+.tool-row {
+  display: flex; gap: 4px;
+}
+
+.tool-btn-sm {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: var(--radius-full);
+  font-size: 12px; color: var(--text-muted);
+  border: 1px solid transparent;
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+.tool-btn-sm:hover { color: var(--text); border-color: var(--border-bright); }
+.tool-btn-sm.active {
+  color: var(--yellow);
+  border-color: rgba(229,200,70,0.3);
+  background: var(--yellow-glow);
+}
+
+.bottom-textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.55;
+  min-height: calc(1.55em + 2px);
+  max-height: calc(1.55em * 6 + 2px);
+  overflow-y: auto;
+  padding: 0;
+}
+.bottom-textarea::placeholder { color: var(--text-muted); }
+
+.send-btn-bottom {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--yellow); color: #111;
+  margin-bottom: 2px;
+  transition: opacity var(--transition), transform var(--transition), background var(--transition);
+}
+.send-btn-bottom:hover { opacity: 0.88; transform: scale(1.05); }
+.send-btn-bottom:disabled { opacity: 0.4; transform: none; cursor: not-allowed; }
+.send-btn-bottom.stop { background: var(--bg-active); color: var(--text); border: 1px solid var(--border-bright); }
+
+/* ── Attachment previews inside inputs ───────────────────────────────────── */
+.input-file-preview-row {
+  display: none;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 4px 2px;
+}
+
+.center-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.attach-preview-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.attach-preview-item img {
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  display: block;
+  border: 1px solid var(--border-bright);
+}
+
+.attach-preview-remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-bright);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text);
+  cursor: pointer;
+  z-index: 1;
+  line-height: 1;
+}
+.attach-preview-remove:hover { background: var(--bg-hover); }
+
+/* ── File chip (text attachments) ────────────────────────────────────────── */
+.file-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-bright);
+  cursor: pointer;
+  max-width: 180px;
+  transition: background var(--transition), border-color var(--transition);
+  font-size: 12px;
+  color: var(--text-dim);
+  min-height: 40px;
+}
+.file-attachment-chip:hover {
+  background: var(--bg-active);
+  border-color: rgba(74,158,255,0.4);
+  color: var(--text);
+}
+.file-attachment-chip .chip-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.file-attachment-chip .chip-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  font-size: 12px;
+}
+.file-attachment-chip .chip-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* In a sent message — shown inside the message bubble */
+.msg-file-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* ── TOS banner ──────────────────────────────────────────────────────────── */
+#tos-banner {
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+  padding: 5px 10px;
+  width: 100%;
+  text-align: center;
+  background-color: var(--bg);
+  border-top: 1px solid var(--border);
+  order: 999;
+  flex-shrink: 0;
+}
+#tos-banner p { margin: 0; }
+#tos-banner a {
+  color: rgba(255,255,255,0.7);
+  text-decoration: underline;
+}
+[data-theme="light"] #tos-banner {
+  color: rgba(0,0,0,0.4);
+}
+[data-theme="light"] #tos-banner a {
+  color: rgba(0,0,0,0.65);
+}
+
+/* ── Mobile: hide tool button text labels, show icons only ───────────────── */
+@media (max-width: 600px) {
+  .tool-btn-sm span {
+    display: none;
+  }
+  .tool-btn-sm {
+    padding: 3px 6px;
+    min-width: 28px;
+    justify-content: center;
+  }
+
+  /* Adjust TOS banner for mobile */
+  #tos-banner {
+    font-size: 10px;
+    padding: 4px 10px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE INPUT — Top bar chrome, TOS at bottom, no overflow
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+  /* ── Mobile top header bar (new chat + sidebar buttons) ── */
+  #mobile-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 52px;
+    z-index: 90;
+    transform: translateY(0);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+  }
+
+  #mobile-top-bar.hidden-bar {
+    transform: translateY(-100%);
+  }
+
+  #mobile-top-bar .mobile-bar-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+
+  #mobile-top-bar .mobile-bar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    color: var(--text-dim);
+    transition: background var(--transition), color var(--transition);
+  }
+
+  #mobile-top-bar .mobile-bar-btn:hover,
+  #mobile-top-bar .mobile-bar-btn:active {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+
+  /* ── TOS banner: at bottom of main ── */
+  #tos-banner {
+    font-size: 10px;
+    padding: 4px 14px;
+    border-top: 1px solid var(--border);
+    order: 999;
+    flex-shrink: 0;
+  }
+
+  /* ── Main area: padded for top bar + TOS ── */
+  #main {
+    padding-top: 52px;
+  }
+
+  /* ── Bottom input bar: sits just above TOS ── */
+  .bottom-input-bar {
+    padding: 0 12px 4px !important;
+  }
+
+  /* ── Welcome view: truly vertically centered ── */
+  .welcome-view {
+    padding-top: 0 !important;
+    padding-bottom: 20px !important;
+    justify-content: center !important;
+    align-items: center !important;
+    height: 100% !important;
+    gap: 20px !important;
+  }
+
+  .welcome-title {
+    text-align: center;
+    font-size: clamp(22px, 6vw, 36px) !important;
+  }
+
+  .welcome-input-wrap {
+    width: 100%;
+    padding: 0 4px;
+  }
+
+  /* Input wrap: tighter on mobile */
+  .bottom-input-wrap,
+  .center-input-container {
+    padding: 6px 8px;
+  }
+
+  /* Prevent any horizontal overflow */
+  .center-input-container,
+  .bottom-input-wrap {
+    max-width: 100%;
+  }
+}
+
+/* Desktop: never show the mobile top bar */
+@media (min-width: 769px) {
+  #mobile-top-bar {
+    display: none !important;
+  }
+}

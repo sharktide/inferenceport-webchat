@@ -1,0 +1,212 @@
+/* ── Modal overlay ───────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  z-index: var(--z-modal);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  animation: fadeIn 0.16s ease;
+}
+
+.modal-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%; max-width: 560px;
+  max-height: 88vh; overflow-y: auto;
+  animation: slideUp 0.2s ease;
+  position: relative;
+}
+
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 0;
+  position: sticky; top: 0;
+  background: var(--bg-surface);
+  z-index: 1;
+}
+.modal-title { font-size: 17px; font-weight: 600; }
+.modal-close {
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-md); color: var(--text-muted);
+  transition: color var(--transition), background var(--transition);
+}
+.modal-close:hover { color: var(--text); background: var(--bg-hover); }
+
+.modal-body { padding: 20px 24px; }
+.modal-footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 0 24px 20px;
+  position: sticky; bottom: 0;
+  background: var(--bg-surface);
+}
+
+/* Wide modal (settings) */
+.modal-box.wide { max-width: 720px; }
+
+/* ── Settings modal tabs ─────────────────────────────────────────────────── */
+.settings-tabs {
+  display: flex; gap: 2px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  margin-bottom: 20px;
+}
+.settings-tab {
+  padding: 10px 16px;
+  font-size: 13px; font-weight: 500; color: var(--text-dim);
+  border-bottom: 2px solid transparent;
+  transition: color var(--transition), border-color var(--transition);
+  cursor: pointer;
+}
+.settings-tab:hover { color: var(--text); }
+.settings-tab.active { color: var(--yellow); border-bottom-color: var(--yellow); }
+
+.settings-pane { display: none; }
+.settings-pane.active { display: block; }
+
+/* ── Form elements inside modals ─────────────────────────────────────────── */
+.form-group {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-bottom: 16px;
+}
+.form-label {
+  font-size: 13px; font-weight: 500; color: var(--text-dim);
+}
+.form-input {
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text); font-size: 14px;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  width: 100%;
+}
+.form-input:focus {
+  outline: none;
+  border-color: rgba(74,158,255,0.5);
+  box-shadow: 0 0 0 3px rgba(74,158,255,0.1);
+}
+.form-hint {
+  font-size: 12px; color: var(--text-muted);
+}
+.form-error {
+  font-size: 12px; color: #f87171;
+}
+
+/* ── Setting row ─────────────────────────────────────────────────────────── */
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-label { font-size: 14px; font-weight: 500; }
+.setting-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+/* ── Sign in modal ───────────────────────────────────────────────────────── */
+.auth-tabs {
+  display: flex; gap: 0;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.auth-tab {
+  flex: 1; padding: 9px;
+  text-align: center; font-size: 14px; font-weight: 500;
+  color: var(--text-dim); cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.auth-tab.active { background: var(--yellow); color: #111; }
+
+.social-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-bright);
+  background: var(--bg-raised);
+  font-size: 14px; color: var(--text);
+  transition: background var(--transition);
+}
+.social-btn:hover { background: var(--bg-hover); }
+
+.auth-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 16px 0;
+  font-size: 12px; color: var(--text-muted);
+}
+.auth-divider::before, .auth-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+/* ── Device session list ─────────────────────────────────────────────────── */
+.device-session-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.device-session-item:hover { background: var(--bg-hover); padding-left: 4px; }
+.device-badge {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--bg-raised); border: 1px solid var(--border-bright);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.device-info { flex: 1; min-width: 0; }
+.device-name { font-size: 13px; font-weight: 500; }
+.device-meta { font-size: 12px; color: var(--text-muted); }
+.device-current { font-size: 11px; color: var(--plan-core); }
+
+/* ── Tool call modal ─────────────────────────────────────────────────────── */
+.tool-detail-section { margin-bottom: 14px; }
+.tool-detail-label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-muted); margin-bottom: 5px;
+}
+.tool-detail-content {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 13px; font-family: var(--font-mono);
+  white-space: pre-wrap; word-break: break-all;
+  max-height: 200px; overflow-y: auto;
+}
+
+/* ── Share warning ───────────────────────────────────────────────────────── */
+.share-warning {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: var(--radius-md);
+  background: rgba(229,200,70,0.08);
+  border: 1px solid rgba(229,200,70,0.25);
+  margin-bottom: 16px;
+  font-size: 13px; color: var(--yellow);
+}
+
+/* ── Sign in required modal ──────────────────────────────────────────────── */
+.limit-modal-inner {
+  text-align: center; padding: 10px 0 6px;
+}
+.limit-icon { font-size: 40px; margin-bottom: 12px; }
+.limit-title { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+.limit-desc { font-size: 14px; color: var(--text-dim); margin-bottom: 20px; }
+
+/* ── Turnstile verification overlay ─────────────────────────────────────── */
+.turnstile-overlay { display: flex; align-items: center; justify-content: center; }
+.turnstile-box {
+  background: rgba(17,17,19,0.96);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  width: 100%; max-width: 420px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  text-align: center; color: var(--text);
+}
+.turnstile-message { margin-bottom: 12px; color: var(--text-dim); font-size: 14px; }
+
+/* make the rest of the page dim and inert while overlay visible */
+.page-faded { filter: blur(2px) brightness(0.6); pointer-events: none; user-select: none; }
