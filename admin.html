@@ -12,7 +12,7 @@
   }
   .container {
     background: rgba(255,255,255,0.95); color: #333; border-radius: 12px;
-    padding: 2rem; box-shadow: 0 8px 20px rgba(0,0,0,0.3); width: 360px; text-align: center;
+    padding: 2rem; box-shadow: 0 8px 20px rgba(0,0,0,0.3); width: 400px; text-align: center;
   }
   h2 { margin-bottom: 1rem; }
   input[type="password"] {
@@ -25,24 +25,32 @@
   }
   #loginBtn { background: #4caf50; color: white; }
   #loginBtn:hover { background: #45a049; }
-  #refreshBtn { background: #007bff; color: white; }
-  #refreshBtn:hover { background: #0056b3; }
-
-  /* Confirmation button */
-  #confirmBtn {
-    background: #e53935; color: white; border-radius: 8px; padding: 0.7rem 1.5rem;
-    font-size: 1.1rem; font-weight: bold; margin-top: 1rem;
-    opacity: 0; transform: scale(0.9); pointer-events: none;
-    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-  }
-  #confirmBtn.show {
-    opacity: 1; transform: scale(1);
-    pointer-events: auto;
-  }
-
-  button:disabled { background: #aaa; cursor: not-allowed; }
-
+  #refreshBtn, #setSHA { background: #007bff; color: white; margin-bottom: 0.5rem; }
+  #refreshBtn:hover, #setSHA:hover { background: #0056b3; }
   #status { margin-top: 1rem; font-weight: bold; }
+
+  /* Modal styling */
+  .modal-overlay {
+    display: none; position: fixed; top:0; left:0; width:100%; height:100%;
+    background: rgba(0,0,0,0.5); justify-content:center; align-items:center;
+    z-index:1000;
+  }
+  .modal {
+    background: #fff; color:#333; padding:2rem; border-radius:12px; width:360px; text-align:center;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+  }
+  .modal h3 { margin-bottom: 1rem; }
+  .modal button { margin-top: 0.5rem; }
+  .commit-list {
+    max-height: 200px; overflow-y: auto; margin: 1rem 0;
+    border: 1px solid #ccc; border-radius: 6px;
+    text-align: left;
+  }
+  .commit-item {
+    padding: 0.5rem; cursor: pointer;
+    border-bottom: 1px solid #eee; transition: background 0.2s;
+  }
+  .commit-item:hover { background: #f0f0f0; }
 </style>
 </head>
 <body>
@@ -54,76 +62,121 @@
   </div>
   <div id="panel" style="display:none;">
     <button id="refreshBtn">Refresh Latest Version</button>
-    <button id="confirmBtn">Confirm Refresh</button>
+    <button id="setSHA">Select Commit SHA</button>
     <div id="status"></div>
   </div>
 </div>
+
+<!-- Modal -->
+<div id="modalOverlay" class="modal-overlay">
+  <div class="modal">
+    <h3 id="modalTitle">Confirm Action</h3>
+    <div id="modalContent"></div>
+    <button id="modalConfirm">Confirm</button>
+    <button id="modalCancel">Cancel</button>
+  </div>
+</div>
+
 <script>
-  const loginBtn = document.getElementById('loginBtn');
-  const tokenInput = document.getElementById('tokenInput');
-  const loginDiv = document.getElementById('loginDiv');
-  const panel = document.getElementById('panel');
-  const refreshBtn = document.getElementById('refreshBtn');
-  const confirmBtn = document.getElementById('confirmBtn');
-  const status = document.getElementById('status');
+const loginBtn = document.getElementById('loginBtn');
+const tokenInput = document.getElementById('tokenInput');
+const loginDiv = document.getElementById('loginDiv');
+const panel = document.getElementById('panel');
+const refreshBtn = document.getElementById('refreshBtn');
+const setSHA = document.getElementById('setSHA');
+const status = document.getElementById('status');
 
-  let token = '';
+const modalOverlay = document.getElementById('modalOverlay');
+const modalTitle = document.getElementById('modalTitle');
+const modalContent = document.getElementById('modalContent');
+const modalConfirm = document.getElementById('modalConfirm');
+const modalCancel = document.getElementById('modalCancel');
 
-  // Determine mode based on hostname
-  const hostname = window.location.hostname;
-  const requiresConfirmation = hostname === 'incognitolm-chat.hf.space';
+let token = '';
+let customSHA = '';
+const hostname = window.location.hostname;
+const requiresConfirmation = hostname === 'incognitolm-chat.hf.space';
+const GITHUB_REPO = 'incognitolm/InferencePort-Pages';
 
-  // Hide confirm button if not required
-  if (!requiresConfirmation) {
-    confirmBtn.style.display = 'none';
+loginBtn.onclick = async () => {
+  token = tokenInput.value.trim();
+  if (!token) return;
+  try {
+    const res = await fetch(`/admin/verify?token=${encodeURIComponent(token)}`);
+    const data = await res.json();
+    if (data.success) {
+      loginDiv.style.display = 'none';
+      panel.style.display = 'block';
+      status.textContent = 'Logged in';
+    } else {
+      status.textContent = 'Invalid token or rate limited';
+    }
+  } catch {
+    status.textContent = 'Error verifying token';
   }
+};
 
-  loginBtn.onclick = async () => {
-    token = tokenInput.value.trim();
-    if (!token) return;
-    try {
-      const res = await fetch(`/admin/verify?token=${encodeURIComponent(token)}`);
-      const data = await res.json();
-      if (data.success) {
-        loginDiv.style.display = 'none';
-        panel.style.display = 'block';
-        status.textContent = 'Logged in';
-      } else {
-        status.textContent = 'Invalid token or rate limited';
-      }
-    } catch {
-      status.textContent = 'Error verifying token';
-    }
-  };
+// --- Modal Functions ---
+function openModal(title, contentHTML='', onConfirm) {
+  modalTitle.textContent = title;
+  modalContent.innerHTML = contentHTML;
+  modalOverlay.style.display = 'flex';
+  modalConfirm.onclick = () => { onConfirm(); closeModal(); };
+  modalCancel.onclick = closeModal;
+}
+function closeModal() { modalOverlay.style.display='none'; }
 
-  const performRefresh = async () => {
-    refreshBtn.disabled = true;
-    if (requiresConfirmation) confirmBtn.disabled = true;
-    status.textContent = 'Refreshing...';
-    try {
-      const res = await fetch(`/admin/refresh?token=${encodeURIComponent(token)}`);
-      const text = await res.text();
-      status.textContent = text;
-    } catch {
-      status.textContent = 'Error refreshing';
-    }
-    refreshBtn.disabled = false;
-    if (requiresConfirmation) {
-      confirmBtn.disabled = false;
-      confirmBtn.classList.remove('show');
-    }
-  };
-
-  if (requiresConfirmation) {
-    refreshBtn.onclick = () => {
-      confirmBtn.classList.add('show');
-      status.textContent = 'Click confirm to proceed';
-    };
-    confirmBtn.onclick = performRefresh;
-  } else {
-    // Direct refresh for dev environment
-    refreshBtn.onclick = performRefresh;
+// --- Refresh Function ---
+async function performRefresh() {
+  status.textContent = 'Refreshing...';
+  try {
+    const url = customSHA ? `/admin/refresh?token=${encodeURIComponent(token)}&sha=${customSHA}` 
+                          : `/admin/refresh?token=${encodeURIComponent(token)}`;
+    const res = await fetch(url);
+    const text = await res.text();
+    status.textContent = text;
+  } catch {
+    status.textContent = 'Error refreshing';
   }
+}
+
+// --- Select Commit SHA Function ---
+async function selectCommitSHA() {
+  status.textContent = 'Fetching commits...';
+  try {
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/commits?per_page=10`);
+    const commits = await res.json();
+    const listHTML = commits.map(c => `
+      <div class="commit-item" data-sha="${c.sha}">
+        <strong>${c.sha.slice(0,7)}</strong>: ${c.commit.message.split('\n')[0]}
+      </div>`).join('');
+    openModal('Select Commit SHA', `<div class="commit-list">${listHTML}</div>`, () => {
+      status.textContent = `Commit SHA selected: ${customSHA}`;
+    });
+
+    document.querySelectorAll('.commit-item').forEach(item => {
+      item.onclick = () => {
+        customSHA = item.dataset.sha;
+        document.querySelector('.commit-list .selected')?.classList.remove('selected');
+        item.classList.add('selected');
+      };
+    });
+  } catch (e) {
+    status.textContent = 'Failed to fetch commits';
+    console.error(e);
+  }
+}
+
+if(requiresConfirmation) {
+  refreshBtn.onclick = () => openModal('Confirm Refresh', '', performRefresh);
+  setSHA.onclick = selectCommitSHA;
+} else {
+  refreshBtn.onclick = performRefresh;
+  setSHA.onclick = async () => {
+    const sha = prompt('Enter commit SHA:', customSHA);
+    if(sha) { customSHA = sha; status.textContent = `Commit SHA set to ${customSHA}`; }
+  };
+}
 </script>
 </body>
 </html>
