@@ -21,10 +21,27 @@
   }
   button {
     padding: 0.6rem 1.2rem; border: none; border-radius: 6px; font-size: 1rem;
-    background: #4caf50; color: white; cursor: pointer; transition: 0.2s;
+    cursor: pointer; transition: all 0.25s ease;
   }
-  button:hover { background: #45a049; }
+  #loginBtn { background: #4caf50; color: white; }
+  #loginBtn:hover { background: #45a049; }
+  #refreshBtn { background: #007bff; color: white; }
+  #refreshBtn:hover { background: #0056b3; }
+
+  /* Confirmation button */
+  #confirmBtn {
+    background: #e53935; color: white; border-radius: 8px; padding: 0.7rem 1.5rem;
+    font-size: 1.1rem; font-weight: bold; margin-top: 1rem;
+    opacity: 0; transform: scale(0.9); pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+  }
+  #confirmBtn.show {
+    opacity: 1; transform: scale(1);
+    pointer-events: auto;
+  }
+
   button:disabled { background: #aaa; cursor: not-allowed; }
+
   #status { margin-top: 1rem; font-weight: bold; }
 </style>
 </head>
@@ -37,6 +54,7 @@
   </div>
   <div id="panel" style="display:none;">
     <button id="refreshBtn">Refresh Latest Version</button>
+    <button id="confirmBtn">Confirm Refresh</button>
     <div id="status"></div>
   </div>
 </div>
@@ -46,10 +64,13 @@
   const loginDiv = document.getElementById('loginDiv');
   const panel = document.getElementById('panel');
   const refreshBtn = document.getElementById('refreshBtn');
+  const confirmBtn = document.getElementById('confirmBtn');
   const status = document.getElementById('status');
 
+  let token = '';
+
   loginBtn.onclick = async () => {
-    const token = tokenInput.value.trim();
+    token = tokenInput.value.trim();
     if (!token) return;
     try {
       const res = await fetch(`/admin/verify?token=${encodeURIComponent(token)}`);
@@ -66,17 +87,25 @@
     }
   };
 
-  refreshBtn.onclick = async () => {
+  refreshBtn.onclick = () => {
+    confirmBtn.classList.add('show');
+    status.textContent = 'Click confirm to proceed';
+  };
+
+  confirmBtn.onclick = async () => {
+    confirmBtn.disabled = true;
     refreshBtn.disabled = true;
     status.textContent = 'Refreshing...';
     try {
-      const res = await fetch(`/admin/refresh?token=${encodeURIComponent(tokenInput.value.trim())}`);
+      const res = await fetch(`/admin/refresh?token=${encodeURIComponent(token)}`);
       const text = await res.text();
       status.textContent = text;
     } catch {
       status.textContent = 'Error refreshing';
     }
+    confirmBtn.disabled = false;
     refreshBtn.disabled = false;
+    confirmBtn.classList.remove('show');
   };
 </script>
 </body>
