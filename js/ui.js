@@ -38,11 +38,16 @@ export function showNotification({ type = 'info', message, action, duration = 50
 let activeMenu = null;
 let menuDocHandler = null;
 
-export function showContextMenu(x, y, items) {
+export function showContextMenu(x, y, items, options = {}) {
   closeContextMenu();
 
-  const menu = document.getElementById('session-context-menu');
+  const menu = options.menuElement
+    || document.getElementById(options.menuId || 'session-context-menu');
+  if (!menu) return;
   menu.innerHTML = '';
+  menu.style.zIndex = options.layer === 'modal'
+    ? 'calc(var(--z-modal) + 60)'
+    : '';
 
   for (const item of items) {
     if (item.separator) {

@@ -3,10 +3,10 @@ import { send, on, off } from './ws.js';
 import { currentSessionId } from './sessions.js';
 import {
   renderMarkdown, attachCodeCopyListeners, attachSvgPanelListeners,
-  escHtml, showNotification, autoResize,
+  escHtml, showContextMenu, showNotification, autoResize,
 } from './ui.js';
 import { renderFilePreviewRow, clearFilePreviewRow } from './app.js';
-import { getMediaObjectUrl, downloadMediaItem } from './media.js';
+import { getMediaObjectUrl, downloadMediaItem, openMediaPicker, mediaItemToAttachment } from './media.js';
 
 let activeSessionId = null;
 let isStreaming      = false;
@@ -770,6 +770,77 @@ function openEditAttachMenu(e, triggerEl, editAttachments, filePreviewRow) {
   menu.style.left = `${Math.max(8, rect.left)}px`;
   menu.style.top  = `${rect.top - mh - 8}px`;
   setTimeout(() => document.addEventListener('click', () => menu.classList.add('hidden'), { once: true }), 0);
+}
+
+function openEditAttachMenu(e, triggerEl, editAttachments, filePreviewRow) {
+  e.preventDefault();
+  const fileInput = document.getElementById('file-input');
+  const imageInput = document.getElementById('image-input');
+  if (!fileInput || !imageInput) return;
+
+  const rect = triggerEl.getBoundingClientRect();
+  showContextMenu(rect.left, rect.top - 8, [
+    {
+      label: 'Upload file',
+      description: 'Attach a text file from your device to this edit.',
+      icon: 'UP',
+      onClick: () => {
+        const handler = async function() {
+          for (const file of fileInput.files) {
+            const text = await file.text();
+            editAttachments.push({ type: 'text', name: file.name, content: text });
+          }
+          fileInput.value = '';
+          fileInput.removeEventListener('change', handler);
+          renderEditFilePreview(editAttachments, filePreviewRow);
+        };
+        fileInput.addEventListener('change', handler);
+        fileInput.click();
+      },
+    },
+    {
+      label: 'Upload image',
+      description: 'Add an image from your device to this edit.',
+      icon: 'IMG',
+      onClick: () => {
+        const handler = async function() {
+          for (const file of imageInput.files) {
+            const dataUrl = await new Promise((res, rej) => {
+              const reader = new FileReader();
+              reader.onload = () => res(reader.result);
+              reader.onerror = rej;
+              reader.readAsDataURL(file);
+            });
+            const comma = dataUrl.indexOf(',');
+            const mimeType = dataUrl.slice(5, dataUrl.indexOf(';'));
+            const base64 = dataUrl.slice(comma + 1);
+            editAttachments.push({ type: 'image', name: file.name, base64, mimeType });
+          }
+          imageInput.value = '';
+          imageInput.removeEventListener('change', handler);
+          renderEditFilePreview(editAttachments, filePreviewRow);
+        };
+        imageInput.addEventListener('change', handler);
+        imageInput.click();
+      },
+    },
+    {
+      label: 'Add from media library',
+      description: 'Reuse files and images already saved in cloud storage.',
+      icon: 'LIB',
+      onClick: async () => {
+        openMediaPicker({
+          onSelect: async (items) => {
+            for (const item of items) {
+              const attachment = await mediaItemToAttachment(item);
+              if (attachment) editAttachments.push(attachment);
+            }
+            renderEditFilePreview(editAttachments, filePreviewRow);
+          },
+        });
+      },
+    },
+  ]);
 }
 
 function renderEditFilePreview(attachments, row) {

@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>InferencePort Admin</title>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 <style>
   :root {
     color-scheme: dark;
@@ -158,6 +159,11 @@
   }
 
   button:hover { transform: translateY(-1px); background: rgba(255,255,255,0.1); }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    transform: none;
+  }
   .btn-primary { background: var(--accent); color: #111; }
   .btn-danger { background: rgba(248,113,113,0.12); color: var(--danger); }
 
@@ -178,6 +184,44 @@
   }
 
   .hidden { display: none !important; }
+
+  .human-gate {
+    margin-bottom: 18px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    border: 1px solid rgba(240,207,88,0.2);
+    background: linear-gradient(180deg, rgba(240,207,88,0.08), rgba(255,255,255,0.02));
+  }
+
+  .human-gate strong {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 15px;
+  }
+
+  .human-gate p {
+    margin: 0 0 14px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .turnstile-slot {
+    min-height: 68px;
+  }
+
+  .status-note {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .disclaimer {
+    margin-top: 18px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    text-align: center;
+  }
 
   .modal-overlay {
     position: fixed;
@@ -256,6 +300,12 @@
 
       <div class="content">
         <div id="loginView">
+          <div id="humanGate" class="human-gate">
+            <strong>Human verification required</strong>
+            <p>Cloudflare Turnstile must be completed before admin logins or deployment changes are allowed.</p>
+            <div id="turnstileHost" class="turnstile-slot"></div>
+            <div id="humanStatus" class="status-note">Preparing verification…</div>
+          </div>
           <div class="login-row">
             <div>
               <label for="tokenInput">Admin token</label>
@@ -286,6 +336,8 @@
 
           <div id="statusLog" class="log">Ready.</div>
         </div>
+
+        <div class="disclaimer">Admin logins and deployment changes are tracked, including IP address and requested version changes.</div>
       </div>
     </div>
   </div>
@@ -300,18 +352,57 @@
   const loginView = document.getElementById('loginView');
   const panelView = document.getElementById('panelView');
   const tokenInput = document.getElementById('tokenInput');
+  const loginBtn = document.getElementById('loginBtn');
   const loginStatus = document.getElementById('loginStatus');
   const statusLog = document.getElementById('statusLog');
   const modalOverlay = document.getElementById('modalOverlay');
   const modalBox = document.getElementById('modalBox');
+  const humanGate = document.getElementById('humanGate');
+  const humanStatus = document.getElementById('humanStatus');
+  const turnstileHost = document.getElementById('turnstileHost');
+  const actionButtons = [
+    'refreshStatusBtn',
+    'refreshLatestBtn',
+    'chooseCommitBtn',
+    'manualShaBtn',
+    'copyShaBtn',
+  ].map((id) => document.getElementById(id));
 
   let token = '';
   let repo = 'incognitolm/InferencePort-Pages';
   let currentSha = '';
+  let humanVerified = false;
+  let turnstileWidgetId = null;
+  let turnstileSiteKey = '';
 
   function setStatus(message) {
     if (loginStatus) loginStatus.textContent = message;
     statusLog.textContent = message;
+  }
+
+  function setHumanStatus(message, isError = false) {
+    if (!humanStatus) return;
+    humanStatus.textContent = message;
+    humanStatus.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+  }
+
+  function setControlsEnabled(enabled) {
+    loginBtn.disabled = !enabled;
+    actionButtons.forEach((button) => {
+      if (button) button.disabled = !enabled;
+    });
+  }
+
+  function handleTurnstileRequired(err) {
+    if (!String(err?.message || '').includes('turnstile:required')) return false;
+    humanVerified = false;
+    setControlsEnabled(false);
+    humanGate?.classList.remove('hidden');
+    setHumanStatus('Verification expired. Please complete Turnstile again.', true);
+    if (window.turnstile && turnstileWidgetId !== null) {
+      window.turnstile.reset(turnstileWidgetId);
+    }
+    return true;
   }
 
   function openModal(html) {
@@ -324,10 +415,81 @@
     modalBox.innerHTML = '';
   }
 
-  async function requestJson(url) {
-    const res = await fetch(url);
+  async function requestJson(url, options = {}) {
+    const res = await fetch(url, options);
     if (!res.ok) throw new Error(await res.text());
     return res.json();
+  }
+
+  function requireHumanVerified() {
+    if (humanVerified) return true;
+    setStatus('Complete the Cloudflare Turnstile check first.');
+    humanGate?.classList.remove('hidden');
+    return false;
+  }
+
+  async function verifyHumanToken(tokenValue) {
+    setHumanStatus('Verifying human check...');
+    try {
+      const data = await requestJson('/admin/turnstile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: tokenValue }),
+      });
+      if (!data.success) throw new Error('Verification failed');
+      humanVerified = true;
+      humanGate?.classList.add('hidden');
+      setControlsEnabled(true);
+      setStatus('Human verification complete.');
+    } catch (err) {
+      humanVerified = false;
+      setControlsEnabled(false);
+      setHumanStatus(err.message || 'Unable to verify human check', true);
+      if (window.turnstile && turnstileWidgetId !== null) {
+        window.turnstile.reset(turnstileWidgetId);
+      }
+    }
+  }
+
+  function renderTurnstileWidget() {
+    if (!turnstileHost || !turnstileSiteKey || !window.turnstile || turnstileWidgetId !== null) return;
+    turnstileWidgetId = window.turnstile.render(turnstileHost, {
+      sitekey: turnstileSiteKey,
+      callback: verifyHumanToken,
+      'error-callback': () => setHumanStatus('Verification failed. Please try again.', true),
+      'expired-callback': () => {
+        humanVerified = false;
+        setControlsEnabled(false);
+        setHumanStatus('Verification expired. Please complete it again.', true);
+      },
+    });
+    setHumanStatus('Complete the check above to unlock admin actions.');
+  }
+
+  async function initHumanVerification() {
+    setControlsEnabled(false);
+    try {
+      const data = await requestJson('/admin/config');
+      turnstileSiteKey = data.siteKey || '';
+      if (data.verified) {
+        humanVerified = true;
+        humanGate?.classList.add('hidden');
+        setControlsEnabled(true);
+        setStatus('Human verification already active.');
+        return;
+      }
+      if (!turnstileSiteKey) {
+        setHumanStatus('Turnstile is not configured on this server.', true);
+        return;
+      }
+      const waitForTurnstile = window.setInterval(() => {
+        if (!window.turnstile) return;
+        window.clearInterval(waitForTurnstile);
+        renderTurnstileWidget();
+      }, 150);
+    } catch (err) {
+      setHumanStatus(err.message || 'Unable to load verification', true);
+    }
   }
 
   async function loadStatus() {
@@ -355,7 +517,15 @@
   }
 
   function confirmThenRun(title, body, fn) {
-    if (!requiresConfirmation) return fn();
+    const run = async () => {
+      try {
+        await fn();
+      } catch (err) {
+        if (handleTurnstileRequired(err)) return;
+        setStatus(err.message || 'Action failed');
+      }
+    };
+    if (!requiresConfirmation) return run();
     openModal(`
       <h2>${title}</h2>
       <p>${body}</p>
@@ -367,7 +537,7 @@
     document.getElementById('modalCancel').onclick = closeModal;
     document.getElementById('modalConfirm').onclick = async () => {
       closeModal();
-      await fn();
+      await run();
     };
   }
 
@@ -426,7 +596,8 @@
     };
   }
 
-  document.getElementById('loginBtn').onclick = async () => {
+  loginBtn.onclick = async () => {
+    if (!requireHumanVerified()) return;
     token = tokenInput.value.trim();
     if (!token) return;
     setStatus('Verifying token...');
@@ -438,17 +609,37 @@
       await loadStatus();
       setStatus('Signed in.');
     } catch (err) {
+      if (handleTurnstileRequired(err)) return;
       setStatus(err.message || 'Unable to verify token');
     }
   };
 
   document.getElementById('refreshLatestBtn').onclick = () => {
+    if (!requireHumanVerified()) return;
     confirmThenRun('Use latest commit', 'Update this space to the most recent available UI commit?', () => applyRefresh());
   };
-  document.getElementById('refreshStatusBtn').onclick = () => loadStatus().then(() => setStatus('Status refreshed.')).catch((err) => setStatus(err.message || 'Unable to refresh status'));
-  document.getElementById('chooseCommitBtn').onclick = () => openCommitPicker().catch((err) => setStatus(err.message || 'Unable to load commits'));
-  document.getElementById('manualShaBtn').onclick = openManualShaModal;
+  document.getElementById('refreshStatusBtn').onclick = () => {
+    if (!requireHumanVerified()) return;
+    loadStatus()
+      .then(() => setStatus('Status refreshed.'))
+      .catch((err) => {
+        if (handleTurnstileRequired(err)) return;
+        setStatus(err.message || 'Unable to refresh status');
+      });
+  };
+  document.getElementById('chooseCommitBtn').onclick = () => {
+    if (!requireHumanVerified()) return;
+    openCommitPicker().catch((err) => {
+      if (handleTurnstileRequired(err)) return;
+      setStatus(err.message || 'Unable to load commits');
+    });
+  };
+  document.getElementById('manualShaBtn').onclick = () => {
+    if (!requireHumanVerified()) return;
+    openManualShaModal();
+  };
   document.getElementById('copyShaBtn').onclick = async () => {
+    if (!requireHumanVerified()) return;
     if (!currentSha) return;
     await navigator.clipboard.writeText(currentSha).catch(() => {});
     setStatus(`Copied ${currentSha}`);
@@ -459,8 +650,10 @@
   };
 
   tokenInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') document.getElementById('loginBtn').click();
+    if (event.key === 'Enter') loginBtn.click();
   });
+
+  initHumanVerification();
 </script>
 </body>
 </html>

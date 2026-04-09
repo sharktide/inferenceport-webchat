@@ -1,6 +1,6 @@
 // settings.js — Settings modal
 import { send, on, off } from './ws.js';
-import { openModal, closeModal, openDeviceSessionModal, openConfirmModal } from './modals.js';
+import { openModal, closeModal, openDeviceSessionModal, openConfirmModal, openTextPromptModal } from './modals.js';
 import { isAuthenticated, currentUser, userProfile, userSettings } from './auth.js';
 import { deleteAllSessions } from './sessions.js';
 import { escHtml, showNotification, showContextMenu } from './ui.js';
@@ -86,6 +86,8 @@ function _openSettingsModal(activeTab, settings) {
       const cleanups = [];
       setupSettingsTabs(b);
       setupChatSettings(b);
+      const personalizationCleanup = setupPersonalizationSettings(b);
+      if (typeof personalizationCleanup === 'function') cleanups.push(personalizationCleanup);
       const memoryCleanup = setupMemorySettings(b);
       if (typeof memoryCleanup === 'function') cleanups.push(memoryCleanup);
       if (isAuthenticated()) {
@@ -108,6 +110,7 @@ function buildSettingsHtml(activeTab, settings) {
   </div>
   <div class="settings-tabs">
     <button class="settings-tab ${activeTab==='chat'?'active':''}" data-tab="chat">Chat</button>
+    <button class="settings-tab ${activeTab==='personalization'?'active':''}" data-tab="personalization">Personalization</button>
     <button class="settings-tab ${activeTab==='memories'?'active':''}" data-tab="memories">Memories</button>
     ${authed ? `<button class="settings-tab ${activeTab==='account'?'active':''}" data-tab="account">Account</button>` : ''}
   </div>
@@ -132,6 +135,8 @@ function buildSettingsHtml(activeTab, settings) {
     ${buildToolToggle('audioGen',   'Audio / SFX',    'Generate music and sound effects', settings.audioGen !== false)}
   </div>
 
+  ${buildPersonalizationPane(activeTab, authed)}
+
   ${buildMemoriesPane(activeTab)}
 
   ${authed ? buildAccountPane(activeTab) : ''}
@@ -155,6 +160,41 @@ function buildToolToggle(key, label, desc, enabled) {
       <div class="toggle-track"></div>
       <div class="toggle-thumb"></div>
     </label>
+  </div>`;
+}
+
+function buildPersonalizationPane(activeTab, authed) {
+  if (!authed) {
+    return `
+    <div class="settings-pane ${activeTab==='personalization'?'active':''}" data-pane="personalization" style="padding:0 24px 20px;">
+      <div class="personalization-card personalization-card-locked">
+        <div class="setting-label">Personalization</div>
+        <div class="setting-desc">Sign in to customize the private system prompt that shapes your chats across devices.</div>
+      </div>
+    </div>`;
+  }
+
+  return `
+  <div class="settings-pane ${activeTab==='personalization'?'active':''}" data-pane="personalization" style="padding:0 24px 20px;">
+    <div class="personalization-card">
+      <div class="personalization-header">
+        <div>
+          <div class="setting-label">System Prompt</div>
+          <div class="setting-desc">Private instructions sent before each chat. Your custom version is stored encrypted for this account.</div>
+        </div>
+        <span class="personalization-badge">Encrypted</span>
+      </div>
+      <div id="system-prompt-toolbar" class="personalization-toolbar"></div>
+      <div id="system-prompt-editor" class="personalization-editor" contenteditable="true" spellcheck="false"></div>
+      <div class="personalization-meta">
+        <span id="system-prompt-status">Loading system prompt…</span>
+        <span id="system-prompt-updated"></span>
+      </div>
+      <div class="personalization-actions">
+        <button class="btn-ghost" id="system-prompt-reset">Reset to Default</button>
+        <button class="btn-primary" id="system-prompt-save">Save Prompt</button>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -220,6 +260,257 @@ function buildAccountPane(activeTab) {
   </div>`;
 }
 
+function markdownToRichHtml(markdown) {
+  const source = String(markdown || '').trim();
+  if (!source) return '<p></p>';
+  const parsed = window.marked?.parse(source) || escHtml(source).replace(/\n/g, '<br>');
+  const sanitized = window.DOMPurify?.sanitize(parsed) || parsed;
+  return sanitized || '<p></p>';
+}
+
+function normalizeMarkdownBlock(text) {
+  return String(text || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function richHtmlToMarkdown(html) {
+  const doc = new DOMParser().parseFromString(`<div>${html || ''}</div>`, 'text/html');
+
+  function serializeChildren(node, context = {}) {
+    return [...node.childNodes].map((child) => serializeNode(child, context)).join('');
+  }
+
+  function serializeList(listNode, ordered = false, depth = 0) {
+    const items = [...listNode.children].filter((child) => child.tagName?.toLowerCase() === 'li');
+    let index = 1;
+    return items.map((item) => {
+      const indent = '  '.repeat(depth);
+      const marker = ordered ? `${index++}. ` : '- ';
+      const parts = [];
+      const nested = [];
+      [...item.childNodes].forEach((child) => {
+        const tag = child.tagName?.toLowerCase();
+        if (tag === 'ul' || tag === 'ol') nested.push(serializeList(child, tag === 'ol', depth + 1));
+        else parts.push(serializeNode(child, { depth }));
+      });
+      const body = normalizeMarkdownBlock(parts.join('')) || 'Item';
+      const nestedText = nested.join('').trimEnd();
+      return `${indent}${marker}${body}${nestedText ? `\n${nestedText}` : ''}`;
+    }).join('\n');
+  }
+
+  function serializeNode(node, context = {}) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || '';
+      return context.inPre ? text : text.replace(/\s+/g, ' ');
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+    const tag = node.tagName.toLowerCase();
+    if (tag === 'br') return '\n';
+    if (tag === 'hr') return '---\n\n';
+    if (/^h[1-6]$/.test(tag)) {
+      const level = Number(tag[1]);
+      const text = normalizeMarkdownBlock(serializeChildren(node, context));
+      return text ? `${'#'.repeat(level)} ${text}\n\n` : '';
+    }
+    if (tag === 'p' || tag === 'div') {
+      const text = normalizeMarkdownBlock(serializeChildren(node, context));
+      return text ? `${text}\n\n` : '\n';
+    }
+    if (tag === 'strong' || tag === 'b') {
+      return `**${normalizeMarkdownBlock(serializeChildren(node, context))}**`;
+    }
+    if (tag === 'em' || tag === 'i') {
+      return `*${normalizeMarkdownBlock(serializeChildren(node, context))}*`;
+    }
+    if (tag === 'u') {
+      return `<u>${normalizeMarkdownBlock(serializeChildren(node, context))}</u>`;
+    }
+    if (tag === 'code' && node.parentElement?.tagName?.toLowerCase() !== 'pre') {
+      return `\`${(node.textContent || '').trim()}\``;
+    }
+    if (tag === 'pre') {
+      const codeEl = node.querySelector('code');
+      const className = codeEl?.className || '';
+      const lang = className.match(/language-([a-z0-9_-]+)/i)?.[1] || '';
+      const body = (codeEl?.textContent || node.textContent || '').replace(/\n+$/, '');
+      return `\`\`\`${lang}\n${body}\n\`\`\`\n\n`;
+    }
+    if (tag === 'blockquote') {
+      const quote = normalizeMarkdownBlock(serializeChildren(node, context));
+      return quote
+        ? `${quote.split('\n').map((line) => line ? `> ${line}` : '>').join('\n')}\n\n`
+        : '';
+    }
+    if (tag === 'ul' || tag === 'ol') {
+      const listText = serializeList(node, tag === 'ol', context.depth || 0);
+      return listText ? `${listText}\n\n` : '';
+    }
+    if (tag === 'a') {
+      const text = normalizeMarkdownBlock(serializeChildren(node, context)) || node.getAttribute('href') || '';
+      const href = node.getAttribute('href') || '';
+      return href ? `[${text}](${href})` : text;
+    }
+    return serializeChildren(node, context);
+  }
+
+  return normalizeMarkdownBlock(serializeChildren(doc.body));
+}
+
+function insertInlineCode(editor) {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return;
+  const selectedText = selection.toString().trim() || 'code';
+  document.execCommand('insertHTML', false, `<code>${escHtml(selectedText)}</code>`);
+  editor.focus();
+}
+
+function renderPromptToolbar(toolbar, editor) {
+  if (!toolbar || !editor) return;
+  const actions = [
+    { label: 'Bold', command: 'bold' },
+    { label: 'Italic', command: 'italic' },
+    { label: 'Heading', command: 'formatBlock', value: 'h2' },
+    { label: 'Bullets', command: 'insertUnorderedList' },
+    { label: 'Quote', command: 'formatBlock', value: 'blockquote' },
+    { label: 'Code', custom: () => insertInlineCode(editor) },
+    {
+      label: 'Link',
+      custom: () => {
+        openTextPromptModal({
+          title: 'Insert Link',
+          label: 'URL',
+          placeholder: 'https://example.com',
+          confirmLabel: 'Insert',
+          onSubmit: (url) => {
+            const value = url.trim();
+            if (!value) return false;
+            editor.focus();
+            document.execCommand('createLink', false, value);
+            return true;
+          },
+        });
+      },
+    },
+  ];
+
+  toolbar.innerHTML = '';
+  actions.forEach((action) => {
+    const btn = document.createElement('button');
+    btn.className = 'media-editor-tool';
+    btn.type = 'button';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => {
+      editor.focus();
+      if (action.custom) return action.custom();
+      document.execCommand(action.command, false, action.value ?? null);
+    });
+    toolbar.appendChild(btn);
+  });
+}
+
+function setupPersonalizationSettings(b) {
+  const editor = b.querySelector('#system-prompt-editor');
+  if (!editor) return null;
+
+  const toolbar = b.querySelector('#system-prompt-toolbar');
+  const saveBtn = b.querySelector('#system-prompt-save');
+  const resetBtn = b.querySelector('#system-prompt-reset');
+  const statusEl = b.querySelector('#system-prompt-status');
+  const updatedEl = b.querySelector('#system-prompt-updated');
+  const state = {
+    savedMarkdown: '',
+    currentMarkdown: '',
+    isCustom: false,
+    loaded: false,
+  };
+  const unsubs = [];
+
+  function setStatus(message, kind = 'info') {
+    if (!statusEl) return;
+    statusEl.textContent = message;
+    statusEl.dataset.kind = kind;
+  }
+
+  function syncDirtyState() {
+    if (!state.loaded) return;
+    state.currentMarkdown = richHtmlToMarkdown(editor.innerHTML);
+    const dirty = state.currentMarkdown !== state.savedMarkdown;
+    if (saveBtn) saveBtn.disabled = !dirty;
+    if (resetBtn) resetBtn.disabled = !state.isCustom && !dirty;
+    if (dirty) {
+      setStatus('Unsaved changes', 'warning');
+      return;
+    }
+    setStatus(state.isCustom ? 'Custom prompt active' : 'Using default system prompt', 'success');
+  }
+
+  function applyPersonalization(personalization = {}) {
+    const source = personalization.resolvedPrompt || personalization.defaultPrompt || '';
+    editor.innerHTML = markdownToRichHtml(source);
+    state.savedMarkdown = richHtmlToMarkdown(editor.innerHTML);
+    state.currentMarkdown = state.savedMarkdown;
+    state.isCustom = !!personalization.isCustom;
+    state.loaded = true;
+    if (updatedEl) {
+      updatedEl.textContent = personalization.updatedAt
+        ? `Updated ${new Date(personalization.updatedAt).toLocaleString()}`
+        : 'Default prompt';
+    }
+    syncDirtyState();
+  }
+
+  renderPromptToolbar(toolbar, editor);
+  editor.addEventListener('input', syncDirtyState);
+
+  saveBtn?.addEventListener('click', () => {
+    const markdown = richHtmlToMarkdown(editor.innerHTML);
+    if (!markdown.trim()) {
+      setStatus('System prompt cannot be empty', 'error');
+      showNotification({ type: 'error', message: 'System prompt cannot be empty', duration: 2600 });
+      return;
+    }
+    setStatus('Saving…', 'info');
+    send({ type: 'personalization:saveSystemPrompt', markdown });
+  });
+
+  resetBtn?.addEventListener('click', () => {
+    openConfirmModal({
+      title: 'Reset System Prompt',
+      message: 'Reset your custom system prompt and go back to the default prompt?',
+      confirmLabel: 'Reset Prompt',
+      onConfirm: () => send({ type: 'personalization:resetSystemPrompt' }),
+    });
+  });
+
+  unsubs.push(on('personalization:data', (msg) => {
+    if (!b.isConnected) return;
+    applyPersonalization(msg.personalization || {});
+  }));
+
+  unsubs.push(on('personalization:updated', (msg) => {
+    if (!b.isConnected) return;
+    applyPersonalization(msg.personalization || {});
+    showNotification({ type: 'success', message: 'System prompt updated', duration: 2200 });
+  }));
+
+  unsubs.push(on('personalization:error', (msg) => {
+    if (!b.isConnected) return;
+    setStatus(msg.message || 'Unable to update system prompt', 'error');
+    showNotification({ type: 'error', message: msg.message || 'Unable to update system prompt', duration: 3200 });
+  }));
+
+  send({ type: 'personalization:get' });
+
+  return () => {
+    unsubs.forEach((unsubscribe) => unsubscribe?.());
+  };
+}
+
 function setupSettingsTabs(b) {
   b.querySelector('#settings-close')?.addEventListener('click', closeModal);
   b.querySelector('#settings-cancel')?.addEventListener('click', closeModal);
@@ -270,7 +561,7 @@ function renderMemoriesList(b, memoryState) {
             <span>${escHtml(new Date(memory.updatedAt).toLocaleString())}</span>
           </div>
         </div>
-        <button class="memory-menu-btn" data-memory-menu="${escHtml(memory.id)}" aria-label="Memory options">&#8943;</button>
+        <button class="memory-menu-btn" data-memory-menu="${escHtml(memory.id)}" aria-label="Memory options">···</button>
       `}
     </div>
   `).join('');
@@ -304,7 +595,7 @@ function renderMemoriesList(b, memoryState) {
             });
           },
         },
-      ]);
+      ], { layer: 'modal' });
     });
   });
 
@@ -594,6 +885,17 @@ function applySettings(b) {
 
   if (isAuthenticated()) {
     send({ type: 'settings:save', settings: newSettings });
+    const promptEditor = b.querySelector('#system-prompt-editor');
+    const promptSaveBtn = b.querySelector('#system-prompt-save');
+    const promptDirty = !!promptEditor && !!promptSaveBtn && !promptSaveBtn.disabled;
+    if (promptDirty) {
+      const markdown = richHtmlToMarkdown(promptEditor.innerHTML);
+      if (!markdown.trim()) {
+        showNotification({ type: 'error', message: 'System prompt cannot be empty', duration: 2600 });
+        return;
+      }
+      send({ type: 'personalization:saveSystemPrompt', markdown });
+    }
   }
 
   closeModal();

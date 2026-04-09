@@ -8,7 +8,7 @@ import {
 import { submitMessage, renderSession, setActiveSession, getIsStreaming } from './chat.js';
 import { openAuthModal } from './modals.js';
 import { openSettings } from './settings.js';
-import { showNotification, autoResize, escHtml } from './ui.js';
+import { showContextMenu, showNotification, autoResize, escHtml } from './ui.js';
 import {
   initMediaSidebar, openMediaPicker, uploadFileToLibrary,
   uploadTextToLibrary, mediaItemToAttachment, openMediaTrashView, refreshMediaList, closeMediaEditor,
@@ -356,28 +356,27 @@ async function addLibraryItemsToDraft(items) {
 
 function openAttachMenu(e, triggerEl) {
   e.preventDefault(); e.stopPropagation();
-  const menu = document.getElementById('attach-context-menu');
-  if (!menu) return;
-  menu.innerHTML = '';
-
-  for (const item of [
-    { label: 'Upload file', onClick: () => document.getElementById('file-input')?.click() },
-    { label: 'Upload image', onClick: () => document.getElementById('image-input')?.click() },
-    { label: 'Add from media library', onClick: () => openMediaPicker({ onSelect: addLibraryItemsToDraft }) },
-  ]) {
-    const el = document.createElement('div');
-    el.className = 'context-item'; el.textContent = item.label;
-    el.addEventListener('click', () => { menu.classList.add('hidden'); item.onClick(); });
-    menu.appendChild(el);
-  }
-
-  menu.classList.remove('hidden');
   const rect = triggerEl.getBoundingClientRect();
-  const mh = menu.getBoundingClientRect().height || 80;
-  menu.style.left = `${Math.max(8, rect.left)}px`;
-  menu.style.top  = `${rect.top - mh - 8}px`;
-
-  setTimeout(() => document.addEventListener('click', () => menu.classList.add('hidden'), { once: true }), 0);
+  showContextMenu(rect.left, rect.top - 8, [
+    {
+      label: 'Upload file',
+      description: 'Attach a text file from your device.',
+      icon: 'UP',
+      onClick: () => document.getElementById('file-input')?.click(),
+    },
+    {
+      label: 'Upload image',
+      description: 'Attach an image from your device.',
+      icon: 'IMG',
+      onClick: () => document.getElementById('image-input')?.click(),
+    },
+    {
+      label: 'Add from media library',
+      description: 'Reuse files and images already saved in cloud storage.',
+      icon: 'LIB',
+      onClick: () => openMediaPicker({ onSelect: addLibraryItemsToDraft }),
+    },
+  ]);
 }
 
 document.getElementById('center-attach-btn')?.addEventListener('click', e =>

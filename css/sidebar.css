@@ -641,6 +641,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  width: 100%;
+}
+
+.sidebar.collapsed .sidebar-top-row {
+  flex-direction: column;
+  justify-content: flex-start;
 }
 
 .sidebar-top-switcher {
