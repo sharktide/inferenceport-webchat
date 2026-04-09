@@ -32,19 +32,12 @@
   }
 
   * { box-sizing: border-box; }
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255,255,255,0.18) transparent;
-  }
+  * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.18) transparent; }
   *::-webkit-scrollbar { width: 10px; height: 10px; }
   *::-webkit-scrollbar-track { background: transparent; }
-  *::-webkit-scrollbar-thumb {
-    border: 2px solid transparent;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.18);
-    background-clip: padding-box;
-  }
+  *::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: rgba(255,255,255,0.18); background-clip: padding-box; }
   *::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); background-clip: padding-box; }
+
   body {
     margin: 0;
     min-height: 100vh;
@@ -56,11 +49,7 @@
     color: var(--text);
   }
 
-  .page {
-    max-width: 980px;
-    margin: 0 auto;
-    padding: 40px 20px 32px;
-  }
+  .page { max-width: 980px; margin: 0 auto; padding: 40px 20px 32px; }
 
   .shell {
     border: 1px solid var(--border);
@@ -70,81 +59,64 @@
     overflow: hidden;
   }
 
-  .hero {
-    padding: 28px 28px 20px;
-    border-bottom: 1px solid var(--border);
-  }
+  .hero { padding: 28px 28px 20px; border-bottom: 1px solid var(--border); }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+  h1 { margin: 10px 0 8px; font-size: clamp(30px, 4vw, 42px); line-height: 1.04; }
+  .hero p { margin: 0; max-width: 720px; color: var(--muted); line-height: 1.6; }
 
-  .eyebrow {
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--accent);
-  }
+  .content { padding: 24px 28px 28px; }
 
-  h1 {
-    margin: 10px 0 8px;
-    font-size: clamp(30px, 4vw, 42px);
-    line-height: 1.04;
-  }
-
-  .hero p {
-    margin: 0;
-    max-width: 720px;
-    color: var(--muted);
-    line-height: 1.6;
-  }
-
-  .content {
-    padding: 24px 28px 28px;
-  }
-
-  .login-row,
-  .action-row,
-  .status-grid {
-    display: grid;
-    gap: 14px;
-  }
-
-  .login-row {
-    grid-template-columns: 1fr auto;
-    align-items: end;
-  }
-
-  .status-grid {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  /* Tabs */
+  .tab-bar {
+    display: flex;
+    gap: 4px;
     margin-bottom: 22px;
-  }
-
-  .card {
-    padding: 16px 18px;
+    padding: 4px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 16px;
     border: 1px solid var(--border);
-    border-radius: 18px;
-    background: var(--panel);
+    width: fit-content;
   }
 
-  .card-label {
+  .tab-btn {
+    padding: 8px 20px;
+    border-radius: 12px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 180ms ease;
+  }
+
+  .tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); transform: none; }
+  .tab-btn.active { background: rgba(255,255,255,0.09); color: var(--text); }
+  .tab-btn .tab-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(240,207,88,0.15);
+    color: var(--accent);
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
   }
 
-  .card-value {
-    margin-top: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    word-break: break-word;
-  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
 
-  label {
-    display: block;
-    margin-bottom: 8px;
-    font-size: 13px;
-    color: var(--muted);
-  }
+  /* Login */
+  .login-row, .action-row, .status-grid { display: grid; gap: 14px; }
+  .login-row { grid-template-columns: 1fr auto; align-items: end; }
+  .status-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 22px; }
+
+  .card { padding: 16px 18px; border: 1px solid var(--border); border-radius: 18px; background: var(--panel); }
+  .card-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .card-value { margin-top: 8px; font-size: 14px; font-weight: 600; word-break: break-word; }
+
+  label { display: block; margin-bottom: 8px; font-size: 13px; color: var(--muted); }
 
   input {
     width: 100%;
@@ -169,18 +141,12 @@
   }
 
   button:hover { transform: translateY(-1px); background: rgba(255,255,255,0.1); }
-  button:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-    transform: none;
-  }
+  button:disabled { cursor: not-allowed; opacity: 0.5; transform: none; }
   .btn-primary { background: var(--accent); color: #111; }
   .btn-danger { background: rgba(248,113,113,0.12); color: var(--danger); }
+  .btn-success { background: rgba(52,211,153,0.12); color: var(--success); }
 
-  .action-row {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    margin-bottom: 18px;
-  }
+  .action-row { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 18px; }
 
   .log {
     min-height: 84px;
@@ -202,28 +168,10 @@
     border: 1px solid rgba(240,207,88,0.2);
     background: linear-gradient(180deg, rgba(240,207,88,0.08), rgba(255,255,255,0.02));
   }
-
-  .human-gate strong {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 15px;
-  }
-
-  .human-gate p {
-    margin: 0 0 14px;
-    color: var(--muted);
-    line-height: 1.6;
-  }
-
-  .turnstile-slot {
-    min-height: 68px;
-  }
-
-  .status-note {
-    margin-top: 10px;
-    font-size: 12px;
-    color: var(--muted);
-  }
+  .human-gate strong { display: block; margin-bottom: 6px; font-size: 15px; }
+  .human-gate p { margin: 0 0 14px; color: var(--muted); line-height: 1.6; }
+  .turnstile-slot { min-height: 68px; }
+  .status-note { margin-top: 10px; font-size: 12px; color: var(--muted); }
 
   .disclaimer {
     margin-top: 18px;
@@ -233,6 +181,7 @@
     text-align: center;
   }
 
+  /* Modal */
   .modal-overlay {
     position: fixed;
     inset: 0;
@@ -243,9 +192,7 @@
     backdrop-filter: blur(6px);
     padding: 20px;
   }
-
   .modal-overlay.open { display: flex; }
-
   .modal {
     width: min(560px, 100%);
     max-height: 82vh;
@@ -256,77 +203,263 @@
     box-shadow: var(--shadow);
     padding: 22px;
   }
+  .modal h2 { margin: 0 0 10px; font-size: 22px; }
+  .modal p { margin: 0 0 16px; color: var(--muted); line-height: 1.6; }
+  .commit-list { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 18px; }
+  .commit-item { padding: 12px 14px; border-radius: 16px; border: 1px solid var(--border); background: var(--panel); text-align: left; }
+  .commit-item.active { border-color: rgba(240,207,88,0.55); background: rgba(240,207,88,0.1); }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
-  .modal h2 {
-    margin: 0 0 10px;
-    font-size: 22px;
+  /* Feedback Tickets UI */
+  .subtab-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
   }
 
-  .modal p {
-    margin: 0 0 16px;
+  .subtab-btn {
+    padding: 8px 18px 10px;
+    border-radius: 0;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
     color: var(--muted);
-    line-height: 1.6;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 160ms ease;
+    margin-bottom: -1px;
   }
 
-  .commit-list {
+  .subtab-btn:hover { color: var(--text); background: transparent; transform: none; }
+  .subtab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+  .subtab-btn .badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .badge-issue { background: rgba(248,113,113,0.15); color: var(--danger); }
+  .badge-improvement { background: rgba(89,140,255,0.15); color: #7ea9ff; }
+  .badge-open { background: rgba(240,207,88,0.15); color: var(--accent); }
+  .badge-resolved { background: rgba(52,211,153,0.12); color: var(--success); }
+
+  .filter-row {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin: 14px 0 18px;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    align-items: center;
   }
 
-  .commit-item {
-    padding: 12px 14px;
-    border-radius: 16px;
+  .filter-btn {
+    padding: 6px 14px;
+    border-radius: 999px;
     border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 160ms ease;
+  }
+
+  .filter-btn:hover { border-color: var(--border-strong); color: var(--text); transform: none; background: rgba(255,255,255,0.04); }
+  .filter-btn.active { border-color: rgba(240,207,88,0.45); color: var(--accent); background: rgba(240,207,88,0.08); }
+
+  .tickets-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .ticket-card {
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
     background: var(--panel);
-    text-align: left;
+    transition: border-color 160ms ease;
+    cursor: pointer;
   }
 
-  .commit-item.active {
-    border-color: rgba(240,207,88,0.55);
-    background: rgba(240,207,88,0.1);
-  }
+  .ticket-card:hover { border-color: var(--border-strong); }
+  .ticket-card.resolved { opacity: 0.6; }
 
-  .modal-actions {
+  .ticket-header {
     display: flex;
-    justify-content: flex-end;
+    align-items: flex-start;
     gap: 10px;
+    margin-bottom: 6px;
   }
+
+  .ticket-title {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.3;
+    word-break: break-word;
+  }
+
+  .ticket-meta {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .pill {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .pill-issue { background: rgba(248,113,113,0.15); color: var(--danger); }
+  .pill-improvement { background: rgba(89,140,255,0.15); color: #7ea9ff; }
+  .pill-production { background: rgba(240,207,88,0.12); color: var(--accent); }
+  .pill-beta { background: rgba(52,211,153,0.12); color: var(--success); }
+  .pill-open { background: rgba(240,207,88,0.12); color: var(--accent); }
+  .pill-resolved { background: rgba(52,211,153,0.1); color: rgba(52,211,153,0.7); }
+
+  .ticket-date { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .ticket-body-preview {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-top: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .ticket-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .ticket-actions button {
+    padding: 7px 14px;
+    font-size: 12px;
+    border-radius: 999px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .empty-state .empty-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    opacity: 0.4;
+  }
+
+  .tickets-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
+  .ticket-count {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  /* Expanded ticket modal */
+  .ticket-full-body {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--muted);
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: rgba(0,0,0,0.16);
+    max-height: 280px;
+    overflow-y: auto;
+    margin-bottom: 16px;
+  }
+
+  .ticket-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .detail-item { }
+  .detail-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px; }
+  .detail-value { font-size: 13px; font-weight: 600; }
 
   @media (max-width: 720px) {
     .login-row { grid-template-columns: 1fr; }
+    .ticket-detail-grid { grid-template-columns: 1fr; }
+  }
+
+  .loading-spinner {
+    text-align: center;
+    padding: 30px;
+    color: var(--muted);
+    font-size: 13px;
   }
 </style>
 </head>
 <body>
-  <div class="page">
-    <div class="shell">
-      <div class="hero">
-        <div class="eyebrow">Admin</div>
-        <h1>InferencePort deployment control</h1>
-        <p>By continuing to this page, you agree that ANY AND ALL ACTIVITIES MAY BE RECORDED TO ANY EXTENT.</p>
+<div class="page">
+  <div class="shell">
+    <div class="hero">
+      <div class="eyebrow">Admin</div>
+      <h1>InferencePort deployment control</h1>
+      <p>By continuing to this page, you agree that ANY AND ALL ACTIVITIES MAY BE RECORDED TO ANY EXTENT.</p>
+    </div>
+
+    <div class="content">
+      <div id="loginView">
+        <div id="humanGate" class="human-gate">
+          <strong>Human verification required</strong>
+          <p>Cloudflare Turnstile must be completed before admin logins or deployment changes are allowed.</p>
+          <div id="turnstileHost" class="turnstile-slot"></div>
+          <div id="humanStatus" class="status-note">Preparing verification…</div>
+        </div>
+        <div class="login-row">
+          <div>
+            <label for="tokenInput">Admin token</label>
+            <input id="tokenInput" type="password" placeholder="Enter admin token" />
+          </div>
+          <button id="loginBtn" class="btn-primary">Log In</button>
+        </div>
+        <div id="loginStatus" class="log" style="margin-top:18px;min-height:56px;">Enter the admin token to continue.</div>
       </div>
 
-      <div class="content">
-        <div id="loginView">
-          <div id="humanGate" class="human-gate">
-            <strong>Human verification required</strong>
-            <p>Cloudflare Turnstile must be completed before admin logins or deployment changes are allowed.</p>
-            <div id="turnstileHost" class="turnstile-slot"></div>
-            <div id="humanStatus" class="status-note">Preparing verification…</div>
-          </div>
-          <div class="login-row">
-            <div>
-              <label for="tokenInput">Admin token</label>
-              <input id="tokenInput" type="password" placeholder="Enter admin token" />
-            </div>
-            <button id="loginBtn" class="btn-primary">Log In</button>
-          </div>
-          <div id="loginStatus" class="log" style="margin-top:18px;min-height:56px;">Enter the admin token to continue.</div>
+      <div id="panelView" class="hidden">
+        <!-- Top-level tabs -->
+        <div class="tab-bar">
+          <button class="tab-btn active" id="tabDeployment" onclick="switchTab('deployment')">Deployment</button>
+          <button class="tab-btn" id="tabFeedback" onclick="switchTab('feedback')">
+            Feedback Tickets
+            <span class="tab-badge hidden" id="openTicketBadge">0</span>
+          </button>
         </div>
 
-        <div id="panelView" class="hidden">
+        <!-- Deployment Tab -->
+        <div id="panelDeployment" class="tab-panel active">
           <div class="status-grid">
             <div class="card"><div class="card-label">Environment</div><div id="envValue" class="card-value">-</div></div>
             <div class="card"><div class="card-label">Serving</div><div id="modeValue" class="card-value">-</div></div>
@@ -347,14 +480,63 @@
           <div id="statusLog" class="log">Ready.</div>
         </div>
 
-        <div class="disclaimer">Admin logins and deployment changes are tracked, including IP address and requested version changes.</div>
+        <!-- Feedback Tickets Tab -->
+        <div id="panelFeedback" class="tab-panel">
+          <!-- Subtabs: Issues / Improvements -->
+          <div class="subtab-bar">
+            <button class="subtab-btn active" id="subtabIssues" onclick="switchSubtab('issues')">
+              Issues
+              <span class="badge badge-issue" id="issueCount">0</span>
+            </button>
+            <button class="subtab-btn" id="subtabImprovements" onclick="switchSubtab('improvements')">
+              Improvements
+              <span class="badge badge-improvement" id="improvementCount">0</span>
+            </button>
+          </div>
+
+          <!-- Issues panel -->
+          <div id="subpanelIssues">
+            <div class="tickets-toolbar">
+              <div class="filter-row">
+                <button class="filter-btn active" id="issueFilter-all" onclick="setFilter('issues','all')">All</button>
+                <button class="filter-btn" id="issueFilter-production" onclick="setFilter('issues','production')">Production</button>
+                <button class="filter-btn" id="issueFilter-beta" onclick="setFilter('issues','beta')">Beta</button>
+                <button class="filter-btn" id="issueFilter-open" onclick="setFilter('issues','open')">Open</button>
+                <button class="filter-btn" id="issueFilter-resolved" onclick="setFilter('issues','resolved')">Resolved</button>
+              </div>
+              <span class="ticket-count" id="issueTicketCount"></span>
+            </div>
+            <div id="issuesList" class="tickets-list"></div>
+          </div>
+
+          <!-- Improvements panel -->
+          <div id="subpanelImprovements" class="hidden">
+            <div class="tickets-toolbar">
+              <div class="filter-row">
+                <button class="filter-btn active" id="improvFilter-all" onclick="setFilter('improvements','all')">All</button>
+                <button class="filter-btn" id="improvFilter-open" onclick="setFilter('improvements','open')">Open</button>
+                <button class="filter-btn" id="improvFilter-resolved" onclick="setFilter('improvements','resolved')">Resolved</button>
+              </div>
+              <span class="ticket-count" id="improvTicketCount"></span>
+            </div>
+            <div id="improvementsList" class="tickets-list"></div>
+          </div>
+
+          <div style="margin-top:18px;">
+            <button onclick="loadFeedbackTickets()" style="font-size:13px;">Refresh Tickets</button>
+          </div>
+        </div>
+
       </div>
+
+      <div class="disclaimer">Admin logins and deployment changes are tracked, including IP address and requested version changes.</div>
     </div>
   </div>
+</div>
 
-  <div id="modalOverlay" class="modal-overlay">
-    <div class="modal" id="modalBox"></div>
-  </div>
+<div id="modalOverlay" class="modal-overlay">
+  <div class="modal" id="modalBox"></div>
+</div>
 
 <script>
   const hostname = window.location.hostname;
@@ -371,12 +553,8 @@
   const humanStatus = document.getElementById('humanStatus');
   const turnstileHost = document.getElementById('turnstileHost');
   const actionButtons = [
-    'refreshStatusBtn',
-    'refreshLatestBtn',
-    'chooseCommitBtn',
-    'manualShaBtn',
-    'copyShaBtn',
-  ].map((id) => document.getElementById(id));
+    'refreshStatusBtn','refreshLatestBtn','chooseCommitBtn','manualShaBtn','copyShaBtn',
+  ].map(id => document.getElementById(id));
 
   let token = '';
   let repo = 'incognitolm/InferencePort-Pages';
@@ -387,17 +565,18 @@
   let turnstileScriptReady = false;
   let turnstileLoadTimer = null;
 
+  // Feedback state
+  let allTickets = [];
+  let issueFilter = 'all';
+  let improvFilter = 'all';
+  let currentSubtab = 'issues';
+
   window.__adminTurnstileBoot = () => {
     turnstileScriptReady = true;
-    if (turnstileLoadTimer) {
-      window.clearTimeout(turnstileLoadTimer);
-      turnstileLoadTimer = null;
-    }
+    if (turnstileLoadTimer) { window.clearTimeout(turnstileLoadTimer); turnstileLoadTimer = null; }
     renderTurnstileWidget();
   };
-  if (window.__adminTurnstileReady || window.turnstile) {
-    window.__adminTurnstileBoot();
-  }
+  if (window.__adminTurnstileReady || window.turnstile) window.__adminTurnstileBoot();
 
   function setStatus(message) {
     if (loginStatus) loginStatus.textContent = message;
@@ -412,18 +591,12 @@
 
   function setControlsEnabled(enabled) {
     loginBtn.disabled = !enabled;
-    actionButtons.forEach((button) => {
-      if (button) button.disabled = !enabled;
-    });
+    actionButtons.forEach(b => { if (b) b.disabled = !enabled; });
   }
 
   function resetTurnstileWidget() {
     if (!window.turnstile || turnstileWidgetId === null) return;
-    try {
-      window.turnstile.reset(turnstileWidgetId);
-    } catch (err) {
-      console.warn('Unable to reset Turnstile widget', err);
-    }
+    try { window.turnstile.reset(turnstileWidgetId); } catch(err) { console.warn('Unable to reset Turnstile widget', err); }
   }
 
   function handleTurnstileRequired(err) {
@@ -488,23 +661,9 @@
       appearance: 'always',
       theme: 'dark',
       retry: 'auto',
-      'error-callback': () => {
-        humanVerified = false;
-        setControlsEnabled(false);
-        setHumanStatus('Verification failed. Please try again.', true);
-      },
-      'expired-callback': () => {
-        humanVerified = false;
-        setControlsEnabled(false);
-        setHumanStatus('Verification expired. Please complete it again.', true);
-        resetTurnstileWidget();
-      },
-      'timeout-callback': () => {
-        humanVerified = false;
-        setControlsEnabled(false);
-        setHumanStatus('Verification timed out. Please try again.', true);
-        resetTurnstileWidget();
-      },
+      'error-callback': () => { humanVerified = false; setControlsEnabled(false); setHumanStatus('Verification failed. Please try again.', true); },
+      'expired-callback': () => { humanVerified = false; setControlsEnabled(false); setHumanStatus('Verification expired. Please complete it again.', true); resetTurnstileWidget(); },
+      'timeout-callback': () => { humanVerified = false; setControlsEnabled(false); setHumanStatus('Verification timed out. Please try again.', true); resetTurnstileWidget(); },
     });
     setHumanStatus('Complete the check above to unlock admin actions.');
   }
@@ -524,27 +683,18 @@
         humanVerified = true;
         humanGate?.classList.add('hidden');
         setControlsEnabled(true);
-        if (turnstileLoadTimer) {
-          window.clearTimeout(turnstileLoadTimer);
-          turnstileLoadTimer = null;
-        }
+        if (turnstileLoadTimer) { window.clearTimeout(turnstileLoadTimer); turnstileLoadTimer = null; }
         setStatus('Human verification already active.');
         return;
       }
       if (!turnstileSiteKey) {
-        if (turnstileLoadTimer) {
-          window.clearTimeout(turnstileLoadTimer);
-          turnstileLoadTimer = null;
-        }
+        if (turnstileLoadTimer) { window.clearTimeout(turnstileLoadTimer); turnstileLoadTimer = null; }
         setHumanStatus('Turnstile is not configured on this server.', true);
         return;
       }
       renderTurnstileWidget();
     } catch (err) {
-      if (turnstileLoadTimer) {
-        window.clearTimeout(turnstileLoadTimer);
-        turnstileLoadTimer = null;
-      }
+      if (turnstileLoadTimer) { window.clearTimeout(turnstileLoadTimer); turnstileLoadTimer = null; }
       setHumanStatus(err.message || 'Unable to load verification', true);
     }
   }
@@ -575,9 +725,7 @@
 
   function confirmThenRun(title, body, fn) {
     const run = async () => {
-      try {
-        await fn();
-      } catch (err) {
+      try { await fn(); } catch (err) {
         if (handleTurnstileRequired(err)) return;
         setStatus(err.message || 'Action failed');
       }
@@ -592,10 +740,7 @@
       </div>
     `);
     document.getElementById('modalCancel').onclick = closeModal;
-    document.getElementById('modalConfirm').onclick = async () => {
-      closeModal();
-      await run();
-    };
+    document.getElementById('modalConfirm').onclick = async () => { closeModal(); await run(); };
   }
 
   function openManualShaModal() {
@@ -626,10 +771,10 @@
       <h2>Choose recent commit</h2>
       <p>Select a recent commit from ${repo}.</p>
       <div class="commit-list">
-        ${commits.map((commit, index) => `
-          <button class="commit-item${index === 0 ? ' active' : ''}" data-sha="${commit.sha}">
-            <div><strong>${commit.sha.slice(0, 7)}</strong></div>
-            <div style="margin-top:6px;color:var(--muted);font-weight:500;">${commit.commit.message.split('\n')[0]}</div>
+        ${commits.map((c, i) => `
+          <button class="commit-item${i === 0 ? ' active' : ''}" data-sha="${c.sha}">
+            <div><strong>${c.sha.slice(0, 7)}</strong></div>
+            <div style="margin-top:6px;color:var(--muted);font-weight:500;">${c.commit.message.split('\n')[0]}</div>
           </button>
         `).join('')}
       </div>
@@ -638,8 +783,7 @@
         <button id="commitApply" class="btn-primary">Apply</button>
       </div>
     `);
-
-    document.querySelectorAll('.commit-item').forEach((el) => {
+    document.querySelectorAll('.commit-item').forEach(el => {
       el.onclick = () => {
         selectedSha = el.dataset.sha;
         document.querySelector('.commit-item.active')?.classList.remove('active');
@@ -653,6 +797,194 @@
     };
   }
 
+  // --- Tab switching ---
+  function switchTab(tab) {
+    document.getElementById('tabDeployment').classList.toggle('active', tab === 'deployment');
+    document.getElementById('tabFeedback').classList.toggle('active', tab === 'feedback');
+    document.getElementById('panelDeployment').classList.toggle('active', tab === 'deployment');
+    document.getElementById('panelFeedback').classList.toggle('active', tab === 'feedback');
+
+    if (tab === 'feedback' && allTickets.length === 0) {
+      loadFeedbackTickets();
+    }
+  }
+
+  function switchSubtab(subtab) {
+    currentSubtab = subtab;
+    document.getElementById('subtabIssues').classList.toggle('active', subtab === 'issues');
+    document.getElementById('subtabImprovements').classList.toggle('active', subtab === 'improvements');
+    document.getElementById('subpanelIssues').classList.toggle('hidden', subtab !== 'issues');
+    document.getElementById('subpanelImprovements').classList.toggle('hidden', subtab !== 'improvements');
+  }
+
+  function setFilter(panel, value) {
+    if (panel === 'issues') {
+      issueFilter = value;
+      ['all','production','beta','open','resolved'].forEach(f => {
+        document.getElementById(`issueFilter-${f}`)?.classList.toggle('active', f === value);
+      });
+    } else {
+      improvFilter = value;
+      ['all','open','resolved'].forEach(f => {
+        document.getElementById(`improvFilter-${f}`)?.classList.toggle('active', f === value);
+      });
+    }
+    renderTickets();
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '-';
+    return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function escapeHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function renderTickets() {
+    const issues = allTickets.filter(t => t.type === 'issue');
+    const improvements = allTickets.filter(t => t.type === 'improvement');
+    const openIssues = issues.filter(t => t.status === 'open').length;
+    const openImprovements = improvements.filter(t => t.status === 'open').length;
+    const totalOpen = openIssues + openImprovements;
+
+    document.getElementById('issueCount').textContent = issues.length;
+    document.getElementById('improvementCount').textContent = improvements.length;
+
+    const badge = document.getElementById('openTicketBadge');
+    badge.textContent = totalOpen;
+    badge.classList.toggle('hidden', totalOpen === 0);
+
+    // Filter issues
+    let filteredIssues = issues;
+    if (issueFilter === 'production') filteredIssues = issues.filter(t => t.environment === 'production');
+    else if (issueFilter === 'beta') filteredIssues = issues.filter(t => t.environment === 'beta');
+    else if (issueFilter === 'open') filteredIssues = issues.filter(t => t.status === 'open');
+    else if (issueFilter === 'resolved') filteredIssues = issues.filter(t => t.status === 'resolved');
+
+    // Filter improvements
+    let filteredImprovements = improvements;
+    if (improvFilter === 'open') filteredImprovements = improvements.filter(t => t.status === 'open');
+    else if (improvFilter === 'resolved') filteredImprovements = improvements.filter(t => t.status === 'resolved');
+
+    document.getElementById('issueTicketCount').textContent = `${filteredIssues.length} ticket${filteredIssues.length !== 1 ? 's' : ''}`;
+    document.getElementById('improvTicketCount').textContent = `${filteredImprovements.length} ticket${filteredImprovements.length !== 1 ? 's' : ''}`;
+
+    renderTicketList('issuesList', filteredIssues, true);
+    renderTicketList('improvementsList', filteredImprovements, false);
+  }
+
+  function renderTicketList(containerId, tickets, showEnv) {
+    const container = document.getElementById(containerId);
+    if (!tickets.length) {
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">✓</div>No tickets here.</div>`;
+      return;
+    }
+    container.innerHTML = tickets.slice().reverse().map(t => `
+      <div class="ticket-card${t.status === 'resolved' ? ' resolved' : ''}" id="card-${t.id}">
+        <div class="ticket-header">
+          <div class="ticket-title">${escapeHtml(t.title)}</div>
+          <div class="ticket-meta">
+            <span class="pill pill-${t.type}">${t.type === 'issue' ? 'Issue' : 'Improvement'}</span>
+            ${showEnv && t.environment ? `<span class="pill pill-${t.environment}">${t.environment}</span>` : ''}
+            <span class="pill pill-${t.status}">${t.status}</span>
+          </div>
+        </div>
+        <div class="ticket-date">Submitted ${formatDate(t.submittedAt)}${t.resolvedAt ? ` &mdash; Resolved ${formatDate(t.resolvedAt)}` : ''}</div>
+        <div class="ticket-body-preview">${escapeHtml(t.body)}</div>
+        <div class="ticket-actions">
+          <button onclick="openTicketDetail('${t.id}')" style="background:rgba(255,255,255,0.05);font-size:12px;">View Full Ticket</button>
+          ${t.status === 'open'
+            ? `<button onclick="resolveTicket('${t.id}')" class="btn-success" style="font-size:12px;">Mark Resolved</button>`
+            : `<button onclick="reopenTicket('${t.id}')" style="font-size:12px;">Reopen</button>`
+          }
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function openTicketDetail(id) {
+    const t = allTickets.find(x => x.id === id);
+    if (!t) return;
+    openModal(`
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+        <h2 style="flex:1;margin:0;font-size:18px;line-height:1.3;">${escapeHtml(t.title)}</h2>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0;">
+          <span class="pill pill-${t.type}">${t.type}</span>
+          ${t.environment ? `<span class="pill pill-${t.environment}">${t.environment}</span>` : ''}
+          <span class="pill pill-${t.status}">${t.status}</span>
+        </div>
+      </div>
+      <div class="ticket-detail-grid">
+        <div class="detail-item"><div class="detail-label">Submitted</div><div class="detail-value">${formatDate(t.submittedAt)}</div></div>
+        <div class="detail-item"><div class="detail-label">Resolved</div><div class="detail-value">${t.resolvedAt ? formatDate(t.resolvedAt) : '—'}</div></div>
+        <div class="detail-item"><div class="detail-label">Ticket ID</div><div class="detail-value" style="font-size:11px;font-family:monospace;">${escapeHtml(t.id)}</div></div>
+        <div class="detail-item"><div class="detail-label">Status</div><div class="detail-value">${t.status}</div></div>
+      </div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:8px;">Description</div>
+      <div class="ticket-full-body">${escapeHtml(t.body)}</div>
+      <div class="modal-actions">
+        <button id="detailClose">Close</button>
+        ${t.status === 'open'
+          ? `<button id="detailResolve" class="btn-success">Mark Resolved</button>`
+          : `<button id="detailReopen">Reopen Ticket</button>`
+        }
+      </div>
+    `);
+    document.getElementById('detailClose').onclick = closeModal;
+    if (t.status === 'open') {
+      document.getElementById('detailResolve').onclick = () => { closeModal(); resolveTicket(id); };
+    } else {
+      document.getElementById('detailReopen').onclick = () => { closeModal(); reopenTicket(id); };
+    }
+  }
+
+  async function loadFeedbackTickets() {
+    const container = document.getElementById('issuesList');
+    container.innerHTML = `<div class="loading-spinner">Loading tickets…</div>`;
+    try {
+      const data = await requestJson(`/admin/feedback?token=${encodeURIComponent(token)}`);
+      allTickets = data.tickets || [];
+      renderTickets();
+    } catch (err) {
+      if (handleTurnstileRequired(err)) return;
+      container.innerHTML = `<div class="empty-state" style="color:var(--danger);">Failed to load tickets: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  async function resolveTicket(id) {
+    try {
+      await requestJson(`/admin/feedback/${encodeURIComponent(id)}/resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      const t = allTickets.find(x => x.id === id);
+      if (t) { t.status = 'resolved'; t.resolvedAt = new Date().toISOString(); }
+      renderTickets();
+    } catch (err) {
+      if (handleTurnstileRequired(err)) return;
+      setStatus(err.message || 'Failed to resolve ticket');
+    }
+  }
+
+  async function reopenTicket(id) {
+    try {
+      await requestJson(`/admin/feedback/${encodeURIComponent(id)}/reopen`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      const t = allTickets.find(x => x.id === id);
+      if (t) { t.status = 'open'; t.resolvedAt = null; }
+      renderTickets();
+    } catch (err) {
+      if (handleTurnstileRequired(err)) return;
+      setStatus(err.message || 'Failed to reopen ticket');
+    }
+  }
+
+  // --- Deployment button wiring ---
   loginBtn.onclick = async () => {
     if (!requireHumanVerified()) return;
     token = tokenInput.value.trim();
@@ -679,17 +1011,11 @@
     if (!requireHumanVerified()) return;
     loadStatus()
       .then(() => setStatus('Status refreshed.'))
-      .catch((err) => {
-        if (handleTurnstileRequired(err)) return;
-        setStatus(err.message || 'Unable to refresh status');
-      });
+      .catch(err => { if (handleTurnstileRequired(err)) return; setStatus(err.message || 'Unable to refresh status'); });
   };
   document.getElementById('chooseCommitBtn').onclick = () => {
     if (!requireHumanVerified()) return;
-    openCommitPicker().catch((err) => {
-      if (handleTurnstileRequired(err)) return;
-      setStatus(err.message || 'Unable to load commits');
-    });
+    openCommitPicker().catch(err => { if (handleTurnstileRequired(err)) return; setStatus(err.message || 'Unable to load commits'); });
   };
   document.getElementById('manualShaBtn').onclick = () => {
     if (!requireHumanVerified()) return;
@@ -702,13 +1028,8 @@
     setStatus(`Copied ${currentSha}`);
   };
 
-  modalOverlay.onclick = (event) => {
-    if (event.target === modalOverlay) closeModal();
-  };
-
-  tokenInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') loginBtn.click();
-  });
+  modalOverlay.onclick = e => { if (e.target === modalOverlay) closeModal(); };
+  tokenInput.addEventListener('keydown', e => { if (e.key === 'Enter') loginBtn.click(); });
 
   initHumanVerification();
 </script>
