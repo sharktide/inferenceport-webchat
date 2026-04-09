@@ -1,9 +1,9 @@
 // settings.js — Settings modal
 import { send, on, off } from './ws.js';
-import { openModal, closeModal, openDeviceSessionModal } from './modals.js';
+import { openModal, closeModal, openDeviceSessionModal, openConfirmModal } from './modals.js';
 import { isAuthenticated, currentUser, userProfile, userSettings } from './auth.js';
 import { deleteAllSessions } from './sessions.js';
-import { escHtml, showNotification } from './ui.js';
+import { escHtml, showNotification, showContextMenu } from './ui.js';
 
 const THEME_STORAGE_KEY = 'ipai_theme';
 
@@ -161,9 +161,9 @@ function buildToolToggle(key, label, desc, enabled) {
 function buildMemoriesPane(activeTab) {
   return `
   <div class="settings-pane ${activeTab==='memories'?'active':''}" data-pane="memories" style="padding:0 24px 20px;">
-    <div class="form-group" style="margin-top:4px;">
+    <div class="form-group memory-create-group" style="margin-top:4px;">
       <label class="form-label">Add Memory</label>
-      <div style="display:flex;gap:8px;">
+      <div class="memory-create-row">
         <input class="form-input" id="memory-create-input" placeholder="Short memory or note" style="flex:1;" />
         <button class="btn-ghost" id="memory-create-btn" style="font-size:13px;padding:6px 14px;white-space:nowrap;">Save</button>
       </div>
@@ -246,61 +246,111 @@ function setupChatSettings(b) {
   });
 }
 
-function renderMemoriesList(b, items) {
+function renderMemoriesList(b, memoryState) {
   const list = b.querySelector('#memories-list');
   if (!list) return;
+  const items = memoryState.items || [];
   if (!items.length) {
     list.innerHTML = '<div style="font-size:13px;color:var(--text-muted);">No memories saved yet.</div>';
     return;
   }
   list.innerHTML = items.map((memory) => `
-    <div class="memory-item" data-memory-id="${escHtml(memory.id)}">
-      <textarea class="memory-textarea">${escHtml(memory.content)}</textarea>
-      <div class="memory-meta">
-        <span>${escHtml(memory.source || 'assistant')}</span>
-        <span>${escHtml(new Date(memory.updatedAt).toLocaleString())}</span>
-      </div>
-      <div class="memory-actions">
-        <button class="btn-ghost memory-save-btn" data-memory-save="${escHtml(memory.id)}">Save</button>
-        <button class="btn-danger memory-delete-btn" data-memory-delete="${escHtml(memory.id)}">Delete</button>
-      </div>
+    <div class="memory-item${memoryState.editingId === memory.id ? ' editing' : ''}" data-memory-id="${escHtml(memory.id)}">
+      ${memoryState.editingId === memory.id ? `
+        <textarea class="memory-edit-input" data-memory-input="${escHtml(memory.id)}">${escHtml(memoryState.draft ?? memory.content)}</textarea>
+        <div class="memory-inline-actions">
+          <button class="btn-ghost memory-cancel-btn" data-memory-cancel="${escHtml(memory.id)}">Cancel</button>
+          <button class="btn-primary memory-save-btn" data-memory-save="${escHtml(memory.id)}">Save</button>
+        </div>
+      ` : `
+        <div class="memory-card-copy">
+          <div class="memory-text">${escHtml(memory.content)}</div>
+          <div class="memory-meta">
+            <span>${escHtml(memory.source || 'assistant')}</span>
+            <span>${escHtml(new Date(memory.updatedAt).toLocaleString())}</span>
+          </div>
+        </div>
+        <button class="memory-menu-btn" data-memory-menu="${escHtml(memory.id)}">...</button>
+      `}
     </div>
   `).join('');
+
+  list.querySelectorAll('[data-memory-menu]').forEach((btn) => {
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const id = btn.dataset.memoryMenu;
+      const memory = items.find((entry) => entry.id === id);
+      if (!memory) return;
+      const rect = btn.getBoundingClientRect();
+      showContextMenu(rect.right - 6, rect.bottom + 6, [
+        {
+          label: 'Edit',
+          onClick: () => {
+            memoryState.editingId = id;
+            memoryState.draft = memory.content;
+            renderMemoriesList(b, memoryState);
+          },
+        },
+        {
+          label: 'Delete',
+          danger: true,
+          onClick: () => {
+            openConfirmModal({
+              title: 'Delete Memory',
+              message: 'Delete this memory?',
+              confirmLabel: 'Delete',
+              danger: true,
+              onConfirm: () => send({ type: 'memories:delete', id }),
+            });
+          },
+        },
+      ]);
+    });
+  });
 
   list.querySelectorAll('[data-memory-save]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.memorySave;
-      const value = list.querySelector(`.memory-item[data-memory-id="${id}"] .memory-textarea`)?.value || '';
+      const value = list.querySelector(`[data-memory-input="${id}"]`)?.value.trim() || '';
+      if (!value) return;
       send({ type: 'memories:update', id, content: value });
     });
   });
 
-  list.querySelectorAll('[data-memory-delete]').forEach((btn) => {
+  list.querySelectorAll('[data-memory-cancel]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      if (!confirm('Delete this memory?')) return;
-      send({ type: 'memories:delete', id: btn.dataset.memoryDelete });
+      memoryState.editingId = null;
+      memoryState.draft = '';
+      renderMemoriesList(b, memoryState);
     });
   });
 }
 
-function loadMemoriesInto(b) {
-  const handler = (msg) => {
-    unsubscribe();
-    if (!b.isConnected) return;
-    renderMemoriesList(b, msg.items || []);
-  };
-  const unsubscribe = on('memories:list', handler);
+function loadMemoriesInto(memoryState) {
   send({ type: 'memories:list' });
-  return unsubscribe;
+  return memoryState;
 }
 
 function setupMemorySettings(b) {
-  const unsubs = [];
-  let pendingListCleanup = null;
-  const reload = () => {
-    pendingListCleanup?.();
-    pendingListCleanup = loadMemoriesInto(b);
+  const memoryState = {
+    items: [],
+    editingId: null,
+    draft: '',
   };
+  const unsubs = [];
+  const reload = () => {
+    loadMemoriesInto(memoryState);
+  };
+
+  unsubs.push(on('memories:list', (msg) => {
+    if (!b.isConnected) return;
+    memoryState.items = msg.items || [];
+    if (!memoryState.items.some((item) => item.id === memoryState.editingId)) {
+      memoryState.editingId = null;
+      memoryState.draft = '';
+    }
+    renderMemoriesList(b, memoryState);
+  }));
 
   reload();
   b.querySelector('#memory-create-btn')?.addEventListener('click', () => {
@@ -312,17 +362,55 @@ function setupMemorySettings(b) {
   });
   ['memories:created', 'memories:updated', 'memories:deleted', 'memories:changed'].forEach((type) => {
     unsubs.push(on(type, () => {
+      memoryState.editingId = null;
+      memoryState.draft = '';
       if (b.isConnected) reload();
     }));
   });
+  b.querySelector('#memory-create-input')?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      b.querySelector('#memory-create-btn')?.click();
+    }
+  });
   return () => {
-    pendingListCleanup?.();
     unsubs.forEach((unsubscribe) => unsubscribe?.());
   };
 }
 
 function setupAccountSettings(b) {
   const unsubs = [];
+  const deviceState = {
+    sessions: [],
+    currentToken: null,
+  };
+
+  function renderDeviceSessions() {
+    const listEl = b.querySelector('#device-sessions-list');
+    if (!listEl) return;
+    if (!deviceState.sessions.length) {
+      listEl.innerHTML = '<div style="font-size:13px;color:var(--text-muted);">No sessions found.</div>';
+      return;
+    }
+    listEl.innerHTML = deviceState.sessions.map((session) => `
+      <div class="device-session-item" data-token="${escHtml(session.token)}">
+        <div class="device-badge">&#128187;</div>
+        <div class="device-info">
+          <div class="device-name">${escHtml(session.userAgent?.slice(0, 56) || 'Unknown device')}</div>
+          <div class="device-meta">${escHtml(session.ip || '—')} · Last seen ${escHtml(session.lastSeen ? new Date(session.lastSeen).toLocaleDateString() : '—')}</div>
+          ${session.token === deviceState.currentToken ? '<div class="device-current">Current session</div>' : ''}
+        </div>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('.device-session-item').forEach((el) => {
+      el.addEventListener('click', () => {
+        const token = el.dataset.token;
+        const session = deviceState.sessions.find((entry) => entry.token === token);
+        if (session) openDeviceSessionModal(session, token === deviceState.currentToken);
+      });
+    });
+  }
   // Username
   b.querySelector('#username-save')?.addEventListener('click', async () => {
     const val = b.querySelector('#username-input')?.value;
@@ -355,27 +443,37 @@ function setupAccountSettings(b) {
 
   // Revoke all devices
   b.querySelector('#revoke-all-btn')?.addEventListener('click', () => {
-    if (confirm('Log out all other devices?')) {
-      send({ type: 'account:revokeAllOthers' });
-      showNotification({ type: 'success', message: 'Other sessions logged out', duration: 2500 });
-    }
+    openConfirmModal({
+      title: 'Log Out Other Devices',
+      message: 'Log out all other devices right now?',
+      confirmLabel: 'Log Out Others',
+      danger: true,
+      onConfirm: () => send({ type: 'account:revokeAllOthers' }),
+    });
   });
 
   // Delete account
-  b.querySelector('#delete-account-btn')?.addEventListener('click', async () => {
-    if (!confirm('Delete your account permanently? This cannot be undone.')) return;
-    const auth = JSON.parse(localStorage.getItem('ipai_auth_v1') || '{}');
-    if (!auth.access_token) return;
-    const res = await fetch('https://dpixehhdbtzsbckfektd.supabase.co/functions/v1/delete_account', {
-      method: 'POST', headers: { Authorization: `Bearer ${auth.access_token}` },
+  b.querySelector('#delete-account-btn')?.addEventListener('click', () => {
+    openConfirmModal({
+      title: 'Delete Account',
+      message: 'Delete your account permanently? This cannot be undone.',
+      confirmLabel: 'Delete Account',
+      danger: true,
+      onConfirm: async () => {
+        const auth = JSON.parse(localStorage.getItem('ipai_auth_v1') || '{}');
+        if (!auth.access_token) return;
+        const res = await fetch('https://dpixehhdbtzsbckfektd.supabase.co/functions/v1/delete_account', {
+          method: 'POST', headers: { Authorization: `Bearer ${auth.access_token}` },
+        });
+        if (res.ok) {
+          closeModal();
+          import('./auth.js').then(a => a.logout());
+        } else {
+          const d = await res.json().catch(() => ({}));
+          showNotification({ type: 'error', message: d.error || 'Delete failed', duration: 4000 });
+        }
+      },
     });
-    if (res.ok) {
-      closeModal();
-      import('./auth.js').then(a => a.logout());
-    } else {
-      const d = await res.json().catch(() => ({}));
-      showNotification({ type: 'error', message: d.error || 'Delete failed', duration: 4000 });
-    }
   });
 
   // Load subscription + device sessions
@@ -383,7 +481,6 @@ function setupAccountSettings(b) {
   send({ type: 'account:getSessions' });
 
   const subHandler = (msg) => {
-    off('account:subscription', subHandler);
     const planEl = b.querySelector('#plan-name-display');
     if (planEl && msg.info) {
       const pKey = msg.info.planKey || 'free';
@@ -394,7 +491,10 @@ function setupAccountSettings(b) {
   unsubs.push(on('account:subscription', subHandler));
 
   const sessHandler = (msg) => {
-    off('account:deviceSessions', sessHandler);
+    deviceState.sessions = msg.sessions || [];
+    deviceState.currentToken = msg.currentToken || deviceState.currentToken;
+    renderDeviceSessions();
+    return;
     const listEl = b.querySelector('#device-sessions-list');
     if (!listEl) return;
     const sessions = msg.sessions || [];
@@ -422,6 +522,16 @@ function setupAccountSettings(b) {
     });
   };
   unsubs.push(on('account:deviceSessions', sessHandler));
+  unsubs.push(on('account:sessionRevoked', (msg) => {
+    deviceState.sessions = deviceState.sessions.filter((session) => session.token !== msg.token);
+    renderDeviceSessions();
+    showNotification({ type: 'success', message: 'Session logged out', duration: 2200 });
+  }));
+  unsubs.push(on('account:allOthersRevoked', () => {
+    deviceState.sessions = deviceState.sessions.filter((session) => session.token === deviceState.currentToken);
+    renderDeviceSessions();
+    showNotification({ type: 'success', message: 'Other sessions logged out', duration: 2200 });
+  }));
   return () => {
     unsubs.forEach((unsubscribe) => unsubscribe?.());
   };

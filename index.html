@@ -71,44 +71,59 @@
     <!-- Sidebar -->
     <aside id="sidebar" class="sidebar collapsed">
       <div class="sidebar-top">
-        <button id="new-chat-btn" class="sidebar-icon-btn" title="New Chat">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
-        <button id="toggle-sidebar-btn" class="sidebar-icon-btn" title="Toggle sidebar">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-        </button>
-      </div>
+        <div class="sidebar-top-row">
+          <button id="new-chat-btn" class="sidebar-icon-btn" title="New Chat">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <button id="toggle-sidebar-btn" class="sidebar-icon-btn" title="Toggle sidebar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+          </button>
+        </div>
 
-      <div id="sidebar-mode-tabs" class="sidebar-mode-tabs">
-        <button class="sidebar-mode-tab active" data-sidebar-mode="chats">Chats</button>
-        <button class="sidebar-mode-tab" data-sidebar-mode="media">Media</button>
+        <div class="sidebar-top-switcher">
+          <div class="sidebar-top-divider"></div>
+          <div class="sidebar-top-switcher-inner">
+            <div id="sidebar-mode-tabs" class="sidebar-mode-tabs">
+              <button class="sidebar-mode-tab active" data-sidebar-mode="chats">Chats</button>
+              <button class="sidebar-mode-tab" data-sidebar-mode="media">Media</button>
+            </div>
+            <button id="sidebar-trash-btn" class="sidebar-trash-btn" title="Open Trash">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="sidebar-sessions" id="sidebar-sessions">
         <div id="sidebar-chat-pane" class="sidebar-pane active">
-          <div class="sidebar-subtabs">
-            <button class="sidebar-subtab active" data-chat-view="active">Chats</button>
-            <button class="sidebar-subtab" data-chat-view="deleted">Recently Deleted</button>
-          </div>
-          <div id="deleted-chat-selection-bar" class="sidebar-selection-bar hidden"></div>
           <div class="session-list" id="session-list"></div>
-          <div class="deleted-chat-list hidden" id="deleted-chat-list"></div>
         </div>
 
         <div id="sidebar-media-pane" class="sidebar-pane hidden">
           <div class="sidebar-subtabs">
-            <button class="sidebar-subtab active" data-media-view="active">Library</button>
-            <button class="sidebar-subtab" data-media-view="trash">Trash</button>
-          </div>
-          <div class="sidebar-toolbar-row">
-            <button id="media-upload-btn" class="sidebar-action-btn" title="Upload file">Upload</button>
-            <button id="media-new-folder-btn" class="sidebar-action-btn" title="Create folder">Folder</button>
-            <button id="media-new-text-btn" class="sidebar-action-btn" title="Create text document">Text</button>
-            <button id="media-new-richtext-btn" class="sidebar-action-btn" title="Create rich text document">Rich</button>
+            <div class="sidebar-pane-title">Media Library</div>
+            <button id="media-create-btn" class="sidebar-create-btn" title="Create or upload">
+              <span class="sidebar-create-plus">+</span>
+            </button>
           </div>
           <div id="media-breadcrumbs" class="media-breadcrumbs"></div>
           <div id="media-selection-bar" class="sidebar-selection-bar hidden"></div>
           <div id="media-list" class="media-list"></div>
+          <div id="media-usage-panel" class="media-usage-panel"></div>
+        </div>
+
+        <div id="sidebar-trash-overlay" class="sidebar-trash-overlay" aria-hidden="true">
+          <div class="sidebar-trash-header">
+            <button id="sidebar-trash-back" class="sidebar-back-btn" title="Back">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <div class="sidebar-trash-heading">
+              <div id="sidebar-trash-title" class="sidebar-trash-title">Trash</div>
+              <div id="sidebar-trash-subtitle" class="sidebar-trash-subtitle"></div>
+            </div>
+          </div>
+          <div id="sidebar-trash-selection-bar" class="sidebar-selection-bar hidden"></div>
+          <div id="sidebar-trash-list" class="sidebar-trash-list"></div>
         </div>
       </div>
 

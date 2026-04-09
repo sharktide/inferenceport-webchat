@@ -282,3 +282,119 @@
 
 /* make the rest of the page dim and inert while overlay visible */
 .page-faded { filter: blur(2px) brightness(0.6); pointer-events: none; user-select: none; }
+
+/* Confirm and prompt */
+.confirm-copy {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.prompt-textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+/* Memories */
+.memory-create-row {
+  display: flex;
+  gap: 8px;
+}
+
+.memory-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+
+.memory-item.editing {
+  grid-template-columns: 1fr;
+}
+
+.memory-card-copy {
+  min-width: 0;
+}
+
+.memory-text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.memory-meta {
+  margin-top: 6px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.memory-menu-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.memory-edit-input {
+  width: 100%;
+  min-height: 72px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.memory-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Media pickers */
+.media-picker-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 2px;
+}
+
+.media-picker-open,
+.media-picker-select {
+  border-radius: 14px;
+}
+
+.media-picker-open {
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+
+.media-picker-open:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-bright);
+}
+
+.media-picker-open.disabled {
+  opacity: 0.5;
+}
+
+.media-picker-select {
+  justify-self: center;
+}

@@ -1,182 +1,444 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Admin Panel</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>InferencePort Admin</title>
 <style>
-  body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #6b73ff 0%, #000dff 100%);
-    display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;
-    color: #fff;
+  :root {
+    color-scheme: dark;
+    --bg: #0f1116;
+    --panel: rgba(20, 24, 32, 0.9);
+    --panel-2: rgba(28, 34, 46, 0.88);
+    --border: rgba(255,255,255,0.1);
+    --border-strong: rgba(255,255,255,0.18);
+    --text: #eef2f8;
+    --muted: #9aa6bc;
+    --accent: #f0cf58;
+    --danger: #f87171;
+    --success: #34d399;
+    --shadow: 0 28px 70px rgba(0,0,0,0.35);
   }
-  .container {
-    background: rgba(255,255,255,0.95); color: #333; border-radius: 12px;
-    padding: 2rem; box-shadow: 0 8px 20px rgba(0,0,0,0.3); width: 400px; text-align: center;
-  }
-  h2 { margin-bottom: 1rem; }
-  input[type="password"] {
-    width: 100%; padding: 0.5rem; margin-bottom: 1rem; border-radius: 6px;
-    border: 1px solid #ccc; font-size: 1rem;
-  }
-  button {
-    padding: 0.6rem 1.2rem; border: none; border-radius: 6px; font-size: 1rem;
-    cursor: pointer; transition: all 0.25s ease;
-  }
-  #loginBtn { background: #4caf50; color: white; }
-  #loginBtn:hover { background: #45a049; }
-  #refreshBtn, #setSHA { background: #007bff; color: white; margin-bottom: 0.5rem; }
-  #refreshBtn:hover, #setSHA:hover { background: #0056b3; }
-  #status { margin-top: 1rem; font-weight: bold; }
 
-  /* Modal styling */
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Geist", "Segoe UI", sans-serif;
+    background:
+      radial-gradient(circle at top left, rgba(240,207,88,0.12), transparent 32%),
+      radial-gradient(circle at bottom right, rgba(89,140,255,0.14), transparent 34%),
+      var(--bg);
+    color: var(--text);
+  }
+
+  .page {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 40px 20px 32px;
+  }
+
+  .shell {
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .hero {
+    padding: 28px 28px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  h1 {
+    margin: 10px 0 8px;
+    font-size: clamp(30px, 4vw, 42px);
+    line-height: 1.04;
+  }
+
+  .hero p {
+    margin: 0;
+    max-width: 720px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .content {
+    padding: 24px 28px 28px;
+  }
+
+  .login-row,
+  .action-row,
+  .status-grid {
+    display: grid;
+    gap: 14px;
+  }
+
+  .login-row {
+    grid-template-columns: 1fr auto;
+    align-items: end;
+  }
+
+  .status-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    margin-bottom: 22px;
+  }
+
+  .card {
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--panel);
+  }
+
+  .card-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .card-value {
+    margin-top: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    word-break: break-word;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--border-strong);
+    background: var(--panel-2);
+    color: var(--text);
+    font: inherit;
+  }
+
+  button {
+    border: 0;
+    border-radius: 999px;
+    padding: 11px 16px;
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+  }
+
+  button:hover { transform: translateY(-1px); background: rgba(255,255,255,0.1); }
+  .btn-primary { background: var(--accent); color: #111; }
+  .btn-danger { background: rgba(248,113,113,0.12); color: var(--danger); }
+
+  .action-row {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    margin-bottom: 18px;
+  }
+
+  .log {
+    min-height: 84px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: rgba(0,0,0,0.16);
+    color: var(--muted);
+    white-space: pre-wrap;
+    line-height: 1.55;
+  }
+
+  .hidden { display: none !important; }
+
   .modal-overlay {
-    display: none; position: fixed; top:0; left:0; width:100%; height:100%;
-    background: rgba(0,0,0,0.5); justify-content:center; align-items:center;
-    z-index:1000;
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.52);
+    backdrop-filter: blur(6px);
+    padding: 20px;
   }
+
+  .modal-overlay.open { display: flex; }
+
   .modal {
-    background: #fff; color:#333; padding:2rem; border-radius:12px; width:360px; text-align:center;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+    width: min(560px, 100%);
+    max-height: 82vh;
+    overflow-y: auto;
+    border-radius: 24px;
+    border: 1px solid var(--border);
+    background: #161a22;
+    box-shadow: var(--shadow);
+    padding: 22px;
   }
-  .modal h3 { margin-bottom: 1rem; }
-  .modal button { margin-top: 0.5rem; }
+
+  .modal h2 {
+    margin: 0 0 10px;
+    font-size: 22px;
+  }
+
+  .modal p {
+    margin: 0 0 16px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
   .commit-list {
-    max-height: 200px; overflow-y: auto; margin: 1rem 0;
-    border: 1px solid #ccc; border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 14px 0 18px;
+  }
+
+  .commit-item {
+    padding: 12px 14px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--panel);
     text-align: left;
   }
-  .commit-item {
-    padding: 0.5rem; cursor: pointer;
-    border-bottom: 1px solid #eee; transition: background 0.2s;
+
+  .commit-item.active {
+    border-color: rgba(240,207,88,0.55);
+    background: rgba(240,207,88,0.1);
   }
-  .commit-item:hover { background: #f0f0f0; }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  @media (max-width: 720px) {
+    .login-row { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
-<div class="container">
-  <h2>Admin Panel</h2>
-  <div id="loginDiv">
-    <input type="password" id="tokenInput" placeholder="Enter admin token" />
-    <button id="loginBtn">Login</button>
-  </div>
-  <div id="panel" style="display:none;">
-    <button id="refreshBtn">Refresh Latest Version</button>
-    <button id="setSHA">Select Commit SHA</button>
-    <div id="status"></div>
-  </div>
-</div>
+  <div class="page">
+    <div class="shell">
+      <div class="hero">
+        <div class="eyebrow">Admin</div>
+        <h1>InferencePort deployment control</h1>
+        <p>Use the latest UI, pin a specific commit, or inspect what this space is currently serving. Production asks for confirmation before changing versions. Development applies immediately.</p>
+      </div>
 
-<!-- Modal -->
-<div id="modalOverlay" class="modal-overlay">
-  <div class="modal">
-    <h3 id="modalTitle">Confirm Action</h3>
-    <div id="modalContent"></div>
-    <button id="modalConfirm">Confirm</button>
-    <button id="modalCancel">Cancel</button>
+      <div class="content">
+        <div id="loginView">
+          <div class="login-row">
+            <div>
+              <label for="tokenInput">Admin token</label>
+              <input id="tokenInput" type="password" placeholder="Enter admin token" />
+            </div>
+            <button id="loginBtn" class="btn-primary">Log In</button>
+          </div>
+        </div>
+
+        <div id="panelView" class="hidden">
+          <div class="status-grid">
+            <div class="card"><div class="card-label">Environment</div><div id="envValue" class="card-value">-</div></div>
+            <div class="card"><div class="card-label">Serving</div><div id="modeValue" class="card-value">-</div></div>
+            <div class="card"><div class="card-label">Current SHA</div><div id="shaValue" class="card-value">-</div></div>
+            <div class="card"><div class="card-label">UI Source</div><div id="sourceValue" class="card-value">-</div></div>
+          </div>
+
+          <div class="action-row">
+            <button id="refreshLatestBtn" class="btn-primary">Use Latest Commit</button>
+            <button id="chooseCommitBtn">Choose Recent Commit</button>
+            <button id="manualShaBtn">Enter Commit SHA</button>
+            <button id="copyShaBtn">Copy Current SHA</button>
+          </div>
+
+          <div id="statusLog" class="log">Ready.</div>
+        </div>
+      </div>
+    </div>
   </div>
-</div>
+
+  <div id="modalOverlay" class="modal-overlay">
+    <div class="modal" id="modalBox"></div>
+  </div>
 
 <script>
-const loginBtn = document.getElementById('loginBtn');
-const tokenInput = document.getElementById('tokenInput');
-const loginDiv = document.getElementById('loginDiv');
-const panel = document.getElementById('panel');
-const refreshBtn = document.getElementById('refreshBtn');
-const setSHA = document.getElementById('setSHA');
-const status = document.getElementById('status');
+  const hostname = window.location.hostname;
+  const requiresConfirmation = hostname === 'incognitolm-chat.hf.space';
+  const loginView = document.getElementById('loginView');
+  const panelView = document.getElementById('panelView');
+  const tokenInput = document.getElementById('tokenInput');
+  const statusLog = document.getElementById('statusLog');
+  const modalOverlay = document.getElementById('modalOverlay');
+  const modalBox = document.getElementById('modalBox');
 
-const modalOverlay = document.getElementById('modalOverlay');
-const modalTitle = document.getElementById('modalTitle');
-const modalContent = document.getElementById('modalContent');
-const modalConfirm = document.getElementById('modalConfirm');
-const modalCancel = document.getElementById('modalCancel');
+  let token = '';
+  let repo = 'incognitolm/InferencePort-Pages';
+  let currentSha = '';
 
-let token = '';
-let customSHA = '';
-const hostname = window.location.hostname;
-const requiresConfirmation = hostname === 'incognitolm-chat.hf.space';
-const GITHUB_REPO = 'incognitolm/InferencePort-Pages';
-
-loginBtn.onclick = async () => {
-  token = tokenInput.value.trim();
-  if (!token) return;
-  try {
-    const res = await fetch(`/admin/verify?token=${encodeURIComponent(token)}`);
-    const data = await res.json();
-    if (data.success) {
-      loginDiv.style.display = 'none';
-      panel.style.display = 'block';
-      status.textContent = 'Logged in';
-    } else {
-      status.textContent = 'Invalid token or rate limited';
-    }
-  } catch {
-    status.textContent = 'Error verifying token';
+  function setStatus(message) {
+    statusLog.textContent = message;
   }
-};
 
-// --- Modal Functions ---
-function openModal(title, contentHTML='', onConfirm) {
-  modalTitle.textContent = title;
-  modalContent.innerHTML = contentHTML;
-  modalOverlay.style.display = 'flex';
-  modalConfirm.onclick = () => { onConfirm(); closeModal(); };
-  modalCancel.onclick = closeModal;
-}
-function closeModal() { modalOverlay.style.display='none'; }
+  function openModal(html) {
+    modalBox.innerHTML = html;
+    modalOverlay.classList.add('open');
+  }
 
-// --- Refresh Function ---
-async function performRefresh() {
-  status.textContent = 'Refreshing...';
-  try {
-    const url = customSHA ? `/admin/refresh?token=${encodeURIComponent(token)}&sha=${customSHA}` 
-                          : `/admin/refresh?token=${encodeURIComponent(token)}`;
+  function closeModal() {
+    modalOverlay.classList.remove('open');
+    modalBox.innerHTML = '';
+  }
+
+  async function requestJson(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+
+  async function loadStatus() {
+    const data = await requestJson(`/admin/status?token=${encodeURIComponent(token)}`);
+    repo = data.repo || repo;
+    currentSha = data.currentSha || '';
+    document.getElementById('envValue').textContent = data.publicUrl || hostname;
+    document.getElementById('modeValue').textContent = data.servingMode || '-';
+    document.getElementById('shaValue').textContent = currentSha || 'Unknown';
+    document.getElementById('sourceValue').textContent = data.uiSource || '-';
+  }
+
+  async function applyRefresh(sha = '') {
+    setStatus(sha ? `Setting commit ${sha}...` : 'Refreshing latest commit...');
+    const url = sha
+      ? `/admin/refresh?token=${encodeURIComponent(token)}&sha=${encodeURIComponent(sha)}`
+      : `/admin/refresh?token=${encodeURIComponent(token)}`;
     const res = await fetch(url);
     const text = await res.text();
-    status.textContent = text;
-  } catch {
-    status.textContent = 'Error refreshing';
+    if (!res.ok) throw new Error(text);
+    setStatus(text);
+    await loadStatus();
   }
-}
 
-// --- Select Commit SHA Function ---
-async function selectCommitSHA() {
-  status.textContent = 'Fetching commits...';
-  try {
-    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/commits?per_page=10`);
-    const commits = await res.json();
-    const listHTML = commits.map(c => `
-      <div class="commit-item" data-sha="${c.sha}">
-        <strong>${c.sha.slice(0,7)}</strong>: ${c.commit.message.split('\n')[0]}
-      </div>`).join('');
-    openModal('Select Commit SHA', `<div class="commit-list">${listHTML}</div>`, () => {
-      status.textContent = `Commit SHA selected: ${customSHA}`;
-    });
+  function confirmThenRun(title, body, fn) {
+    if (!requiresConfirmation) return fn();
+    openModal(`
+      <h2>${title}</h2>
+      <p>${body}</p>
+      <div class="modal-actions">
+        <button id="modalCancel">Cancel</button>
+        <button id="modalConfirm" class="btn-primary">Confirm</button>
+      </div>
+    `);
+    document.getElementById('modalCancel').onclick = closeModal;
+    document.getElementById('modalConfirm').onclick = async () => {
+      closeModal();
+      await fn();
+    };
+  }
 
-    document.querySelectorAll('.commit-item').forEach(item => {
-      item.onclick = () => {
-        customSHA = item.dataset.sha;
-        document.querySelector('.commit-list .selected')?.classList.remove('selected');
-        item.classList.add('selected');
+  function openManualShaModal() {
+    openModal(`
+      <h2>Enter commit SHA</h2>
+      <p>Paste a full or short commit SHA to pin the UI.</p>
+      <label for="manualShaInput">Commit SHA</label>
+      <input id="manualShaInput" value="${currentSha}" placeholder="abc1234" />
+      <div class="modal-actions" style="margin-top:18px;">
+        <button id="manualCancel">Cancel</button>
+        <button id="manualApply" class="btn-primary">Apply</button>
+      </div>
+    `);
+    document.getElementById('manualCancel').onclick = closeModal;
+    document.getElementById('manualApply').onclick = async () => {
+      const sha = document.getElementById('manualShaInput').value.trim();
+      if (!sha) return;
+      closeModal();
+      await confirmThenRun('Apply commit SHA', `Switch to ${sha}?`, () => applyRefresh(sha));
+    };
+  }
+
+  async function openCommitPicker() {
+    setStatus('Loading recent commits...');
+    const commits = await requestJson(`https://api.github.com/repos/${repo}/commits?per_page=12`);
+    let selectedSha = commits[0]?.sha || '';
+    openModal(`
+      <h2>Choose recent commit</h2>
+      <p>Select a recent commit from ${repo}.</p>
+      <div class="commit-list">
+        ${commits.map((commit, index) => `
+          <button class="commit-item${index === 0 ? ' active' : ''}" data-sha="${commit.sha}">
+            <div><strong>${commit.sha.slice(0, 7)}</strong></div>
+            <div style="margin-top:6px;color:var(--muted);font-weight:500;">${commit.commit.message.split('\n')[0]}</div>
+          </button>
+        `).join('')}
+      </div>
+      <div class="modal-actions">
+        <button id="commitCancel">Cancel</button>
+        <button id="commitApply" class="btn-primary">Apply</button>
+      </div>
+    `);
+
+    document.querySelectorAll('.commit-item').forEach((el) => {
+      el.onclick = () => {
+        selectedSha = el.dataset.sha;
+        document.querySelector('.commit-item.active')?.classList.remove('active');
+        el.classList.add('active');
       };
     });
-  } catch (e) {
-    status.textContent = 'Failed to fetch commits';
-    console.error(e);
+    document.getElementById('commitCancel').onclick = closeModal;
+    document.getElementById('commitApply').onclick = async () => {
+      closeModal();
+      await confirmThenRun('Apply selected commit', `Switch to ${selectedSha.slice(0, 7)}?`, () => applyRefresh(selectedSha));
+    };
   }
-}
 
-if(requiresConfirmation) {
-  refreshBtn.onclick = () => openModal('Confirm Refresh', '', performRefresh);
-  setSHA.onclick = selectCommitSHA;
-} else {
-  refreshBtn.onclick = performRefresh;
-  setSHA.onclick = async () => {
-    const sha = prompt('Enter commit SHA:', customSHA);
-    if(sha) { customSHA = sha; status.textContent = `Commit SHA set to ${customSHA}`; }
+  document.getElementById('loginBtn').onclick = async () => {
+    token = tokenInput.value.trim();
+    if (!token) return;
+    setStatus('Verifying token...');
+    try {
+      const data = await requestJson(`/admin/verify?token=${encodeURIComponent(token)}`);
+      if (!data.success) throw new Error('Invalid token or rate limited');
+      loginView.classList.add('hidden');
+      panelView.classList.remove('hidden');
+      await loadStatus();
+      setStatus('Signed in.');
+    } catch (err) {
+      setStatus(err.message || 'Unable to verify token');
+    }
   };
-}
+
+  document.getElementById('refreshLatestBtn').onclick = () => {
+    confirmThenRun('Use latest commit', 'Update this space to the most recent available UI commit?', () => applyRefresh());
+  };
+  document.getElementById('chooseCommitBtn').onclick = () => openCommitPicker().catch((err) => setStatus(err.message || 'Unable to load commits'));
+  document.getElementById('manualShaBtn').onclick = openManualShaModal;
+  document.getElementById('copyShaBtn').onclick = async () => {
+    if (!currentSha) return;
+    await navigator.clipboard.writeText(currentSha).catch(() => {});
+    setStatus(`Copied ${currentSha}`);
+  };
+
+  modalOverlay.onclick = (event) => {
+    if (event.target === modalOverlay) closeModal();
+  };
+
+  tokenInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') document.getElementById('loginBtn').click();
+  });
 </script>
 </body>
 </html>

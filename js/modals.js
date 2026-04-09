@@ -69,6 +69,116 @@ export function closeSecondaryModal() {
   }
 }
 
+function hasPrimaryModalOpen() {
+  const o = getOverlay();
+  return !!o && !o.classList.contains('hidden');
+}
+
+function openLayeredModal(html, opts = {}) {
+  if (hasPrimaryModalOpen()) {
+    openSecondaryModal(html, opts);
+    return 'secondary';
+  }
+  openModal(html, opts);
+  return 'primary';
+}
+
+function closeLayeredModal(kind) {
+  if (kind === 'secondary') closeSecondaryModal();
+  else closeModal();
+}
+
+export function openConfirmModal({
+  title = 'Confirm Action',
+  message = 'Are you sure?',
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
+  danger = false,
+  onConfirm,
+}) {
+  const layer = openLayeredModal(`
+    <div class="modal-header">
+      <span class="modal-title">${escHtml(title)}</span>
+      <button class="modal-close" id="confirm-close-btn">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="confirm-copy">${message}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" id="confirm-cancel-btn">${escHtml(cancelLabel)}</button>
+      <button class="${danger ? 'btn-danger' : 'btn-primary'}" id="confirm-submit-btn">${escHtml(confirmLabel)}</button>
+    </div>
+  `, {
+    onOpen(b) {
+      const close = () => closeLayeredModal(layer);
+      b.querySelector('#confirm-close-btn')?.addEventListener('click', close);
+      b.querySelector('#confirm-cancel-btn')?.addEventListener('click', close);
+      b.querySelector('#confirm-submit-btn')?.addEventListener('click', async () => {
+        await onConfirm?.();
+        close();
+      });
+    }
+  });
+}
+
+export function openTextPromptModal({
+  title = 'Enter Value',
+  label = 'Value',
+  placeholder = '',
+  value = '',
+  confirmLabel = 'Save',
+  cancelLabel = 'Cancel',
+  multiline = false,
+  onSubmit,
+}) {
+  const fieldHtml = multiline
+    ? `<textarea class="form-input prompt-textarea" id="prompt-input" placeholder="${escHtml(placeholder)}">${escHtml(value)}</textarea>`
+    : `<input class="form-input" id="prompt-input" value="${escHtml(value)}" placeholder="${escHtml(placeholder)}" />`;
+
+  const layer = openLayeredModal(`
+    <div class="modal-header">
+      <span class="modal-title">${escHtml(title)}</span>
+      <button class="modal-close" id="prompt-close-btn">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="prompt-input">${escHtml(label)}</label>
+        ${fieldHtml}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" id="prompt-cancel-btn">${escHtml(cancelLabel)}</button>
+      <button class="btn-primary" id="prompt-submit-btn">${escHtml(confirmLabel)}</button>
+    </div>
+  `, {
+    onOpen(b) {
+      const close = () => closeLayeredModal(layer);
+      const input = b.querySelector('#prompt-input');
+      const submit = async () => {
+        const nextValue = input?.value ?? '';
+        const shouldClose = await onSubmit?.(nextValue);
+        if (shouldClose !== false) close();
+      };
+      b.querySelector('#prompt-close-btn')?.addEventListener('click', close);
+      b.querySelector('#prompt-cancel-btn')?.addEventListener('click', close);
+      b.querySelector('#prompt-submit-btn')?.addEventListener('click', submit);
+      input?.addEventListener('keydown', (event) => {
+        if (!multiline && event.key === 'Enter') {
+          event.preventDefault();
+          submit();
+        }
+      });
+      setTimeout(() => {
+        input?.focus();
+        if (typeof input?.setSelectionRange === 'function') {
+          const end = input.value?.length || 0;
+          input.setSelectionRange(end, end);
+        }
+      }, 0);
+    }
+  });
+}
+
 // ── Auth modal ────────────────────────────────────────────────────────────
 
 export function openAuthModal(initialTab = 'signin') {

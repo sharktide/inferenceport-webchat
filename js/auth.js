@@ -60,7 +60,7 @@ export async function loginWithEmail(email, password) {
     method: 'POST', body: JSON.stringify({ email, password }),
   });
   if (data.error) throw new Error(data.error_description || data.error);
-  await handleSupabaseSession(data);
+  await handleSupabaseSession(data, { showWelcome: true });
   return data;
 }
 
@@ -69,7 +69,7 @@ export async function signUpWithEmail(email, password) {
     method: 'POST', body: JSON.stringify({ email, password }),
   });
   if (data.error) throw new Error(data.error_description || data.error);
-  if (data.access_token) await handleSupabaseSession(data);
+  if (data.access_token) await handleSupabaseSession(data, { showWelcome: true });
   return data;
 }
 
@@ -107,7 +107,7 @@ export async function logout() {
 
 // ── Session handling ──────────────────────────────────────────────────────
 
-async function handleSupabaseSession(data) {
+async function handleSupabaseSession(data, { showWelcome = false } = {}) {
   console.log('[Frontend Auth] handleSupabaseSession called with token:', data.access_token?.slice(0, 20) + '...');
   if (!data.access_token) throw new Error('No access token');
   saveAuth({ access_token: data.access_token, refresh_token: data.refresh_token, user: data.user });
@@ -121,7 +121,13 @@ async function handleSupabaseSession(data) {
 
     const unsubOk  = on('auth:ok',    (msg) => {
       console.log('[Frontend Auth] Received auth:ok response');
-      unsubOk(); unsubErr(); applyAuthOk(msg); resolve(msg);
+      unsubOk();
+      unsubErr();
+      applyAuthOk(msg);
+      if (showWelcome) {
+        import('./sessions.js').then((m) => m.showWelcomeScreen()).catch(() => {});
+      }
+      resolve(msg);
     });
     const unsubErr = on('auth:error', (msg) => { 
       console.error('[Frontend Auth] Received auth:error:', msg.message);
@@ -192,7 +198,7 @@ on('ws:connected', async () => {
   if (auth?.access_token) {
     try {
       console.log('[Frontend Auth] Attempting to resume session with existing token');
-      await handleSupabaseSession(auth);
+      await handleSupabaseSession(auth, { showWelcome: false });
     }
     catch (err) {
       console.error('[Frontend Auth] Failed to resume session:', err);
@@ -227,7 +233,7 @@ window.addEventListener('storage', async (e) => {
   }
   console.log('[Frontend Auth] Processing OAuth tokens:', tokens.access_token?.slice(0, 20) + '...');
   try {
-    await handleSupabaseSession(tokens);
+    await handleSupabaseSession(tokens, { showWelcome: true });
     import('./ui.js').then(({ showNotification }) =>
       showNotification({ type: 'success', message: 'Signed in!', duration: 2500 }));
   } catch (err) {
@@ -245,7 +251,7 @@ window.addEventListener('storage', async (e) => {
   if (params.get('oauth') === '1' && t) {
     console.log('[Frontend Auth] Processing OAuth redirect with token:', t.slice(0, 20) + '...');
     history.replaceState({}, '', '/');
-    handleSupabaseSession({ access_token: t, refresh_token: r || '' }).catch((err) => {
+    handleSupabaseSession({ access_token: t, refresh_token: r || '' }, { showWelcome: true }).catch((err) => {
       console.error('[Frontend Auth] OAuth redirect failed:', err);
     });
   }
@@ -262,7 +268,7 @@ window.addEventListener('message', async (e) => {
     return;
   }
   console.log('[Frontend Auth] Processing postMessage tokens:', access_token?.slice(0, 20) + '...');
-  try { await handleSupabaseSession({ access_token, refresh_token }); }
+  try { await handleSupabaseSession({ access_token, refresh_token }, { showWelcome: true }); }
   catch (err) {
     console.error('[Frontend Auth] postMessage sign-in error:', err);
     import('./ui.js').then(({ showNotification }) =>

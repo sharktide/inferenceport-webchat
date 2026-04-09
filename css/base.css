@@ -198,3 +198,61 @@ body::-webkit-scrollbar,
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
+
+:root {
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+textarea,
+.media-rich-editor,
+.media-text-editor,
+.modal-box,
+.sidebar-sessions,
+#chat-messages,
+#media-list,
+#sidebar-trash-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright) transparent;
+}
+
+textarea::-webkit-scrollbar,
+.media-rich-editor::-webkit-scrollbar,
+.media-text-editor::-webkit-scrollbar,
+.modal-box::-webkit-scrollbar,
+.sidebar-sessions::-webkit-scrollbar,
+#chat-messages::-webkit-scrollbar,
+#media-list::-webkit-scrollbar,
+#sidebar-trash-list::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  display: block;
+}
+
+textarea::-webkit-scrollbar-track,
+.media-rich-editor::-webkit-scrollbar-track,
+.media-text-editor::-webkit-scrollbar-track,
+.modal-box::-webkit-scrollbar-track,
+.sidebar-sessions::-webkit-scrollbar-track,
+#chat-messages::-webkit-scrollbar-track,
+#media-list::-webkit-scrollbar-track,
+#sidebar-trash-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+textarea::-webkit-scrollbar-thumb,
+.media-rich-editor::-webkit-scrollbar-thumb,
+.media-text-editor::-webkit-scrollbar-thumb,
+.modal-box::-webkit-scrollbar-thumb,
+.sidebar-sessions::-webkit-scrollbar-thumb,
+#chat-messages::-webkit-scrollbar-thumb,
+#media-list::-webkit-scrollbar-thumb,
+#sidebar-trash-list::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--border-bright);
+  background-clip: padding-box;
+}

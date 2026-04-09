@@ -1,15 +1,15 @@
 import { send, on } from './ws.js';
 import { showContextMenu } from './ui.js';
-import { showShareModal } from './modals.js';
+import { showShareModal, openConfirmModal } from './modals.js';
 
 export let sessions = [];
 export let currentSessionId = null;
 
 let deletedChats = [];
-let chatSidebarView = 'active';
 const deletedSelection = new Set();
 
 const sessionListeners = new Set();
+
 export function onSessionChange(fn) {
   sessionListeners.add(fn);
   return () => sessionListeners.delete(fn);
@@ -19,15 +19,43 @@ function notify(event, data) {
   sessionListeners.forEach((fn) => fn(event, data));
 }
 
-on('sessions:list', (msg) => {
-  sessions = msg.sessions || [];
+function hasSession(id) {
+  return !!id && sessions.some((session) => session.id === id);
+}
+
+function isChatTrashOverlayOpen() {
+  const overlay = document.getElementById('sidebar-trash-overlay');
+  const host = document.getElementById('sidebar-sessions');
+  return !!overlay && !!host && host.classList.contains('trash-open') && overlay.dataset.context === 'chats';
+}
+
+function sortSessionsInPlace() {
+  sessions.sort((a, b) => {
+    const aTime = a.history?.at(-1)?.timestamp || a.created || 0;
+    const bTime = b.history?.at(-1)?.timestamp || b.created || 0;
+    return bTime - aTime;
+  });
+}
+
+function syncSessionList(nextSessions = []) {
+  sessions = nextSessions;
+  sortSessionsInPlace();
+  if (!hasSession(currentSessionId)) {
+    currentSessionId = null;
+    notify('switched', null);
+  }
   renderChatSidebar();
+}
+
+on('sessions:list', (msg) => {
+  syncSessionList(msg.sessions || []);
 });
 
 on('sessions:created', (msg) => {
   const existing = sessions.findIndex((session) => session.id === msg.session.id);
   if (existing === -1) sessions.unshift(msg.session);
   else sessions[existing] = msg.session;
+  sortSessionsInPlace();
   renderChatSidebar();
   notify('created', msg.session);
 });
@@ -35,8 +63,8 @@ on('sessions:created', (msg) => {
 on('sessions:deleted', (msg) => {
   sessions = sessions.filter((session) => session.id !== msg.sessionId);
   if (currentSessionId === msg.sessionId) {
-    currentSessionId = sessions[0]?.id || null;
-    notify('switched', currentSessionId);
+    currentSessionId = null;
+    notify('switched', null);
   }
   requestDeletedChats();
   renderChatSidebar();
@@ -59,29 +87,18 @@ on('sessions:renamed', (msg) => {
 on('sessions:data', (msg) => {
   const existing = sessions.findIndex((session) => session.id === msg.session.id);
   if (existing >= 0) sessions[existing] = msg.session;
+  renderChatSidebar();
   notify('data', msg.session);
 });
 
 on('auth:ok', (msg) => {
-  sessions = msg.sessions || [];
+  syncSessionList(msg.sessions || []);
   requestDeletedChats();
-  renderChatSidebar();
-  if (sessions.length > 0) switchSession(sessions[0].id);
-  else {
-    currentSessionId = null;
-    notify('switched', null);
-  }
 });
 
 on('auth:guestOk', (msg) => {
-  sessions = msg.sessions || [];
+  syncSessionList(msg.sessions || []);
   requestDeletedChats();
-  renderChatSidebar();
-  if (sessions.length > 0) switchSession(sessions[0].id);
-  else {
-    currentSessionId = null;
-    notify('switched', null);
-  }
 });
 
 on('chat:done', (msg) => {
@@ -89,16 +106,13 @@ on('chat:done', (msg) => {
   if (!session) return;
   session.history = msg.history;
   if (msg.name) session.name = msg.name;
-  sessions.sort((a, b) => {
-    const aTime = a.history?.at(-1)?.timestamp || a.created;
-    const bTime = b.history?.at(-1)?.timestamp || b.created;
-    return bTime - aTime;
-  });
+  sortSessionsInPlace();
   renderChatSidebar();
 });
 
 on('sessions:imported', (msg) => {
   sessions.unshift(msg.session);
+  sortSessionsInPlace();
   renderChatSidebar();
   switchSession(msg.session.id);
 });
@@ -106,7 +120,7 @@ on('sessions:imported', (msg) => {
 on('trash:chats:list', (msg) => {
   deletedChats = msg.items || [];
   deletedSelection.clear();
-  renderChatSidebar();
+  renderChatTrashOverlay();
 });
 
 on('trash:chats:restored', (msg) => {
@@ -114,8 +128,17 @@ on('trash:chats:restored', (msg) => {
   restored.forEach((session) => {
     if (!sessions.some((existing) => existing.id === session.id)) sessions.unshift(session);
   });
+  sortSessionsInPlace();
   requestDeletedChats();
   renderChatSidebar();
+  renderChatTrashOverlay();
+});
+
+on('trash:chats:deletedForever', (msg) => {
+  const removed = new Set(msg.ids || []);
+  deletedChats = deletedChats.filter((chat) => !removed.has(chat.id));
+  for (const id of removed) deletedSelection.delete(id);
+  renderChatTrashOverlay();
 });
 
 on('trash:chats:changed', () => {
@@ -133,6 +156,7 @@ export function createNewSession() {
 }
 
 export function switchSession(id) {
+  if (!id) return;
   currentSessionId = id;
   renderChatSidebar();
   send({ type: 'sessions:get', sessionId: id });
@@ -140,13 +164,23 @@ export function switchSession(id) {
 }
 
 export function deleteSession(id) {
-  if (!confirm('Move this chat to Recently Deleted?')) return;
-  send({ type: 'sessions:delete', sessionId: id });
+  openConfirmModal({
+    title: 'Move Chat To Recently Deleted',
+    message: 'This chat will stay in Recently Deleted for 30 days unless you remove it permanently.',
+    confirmLabel: 'Move to Recently Deleted',
+    danger: true,
+    onConfirm: () => send({ type: 'sessions:delete', sessionId: id }),
+  });
 }
 
 export function deleteAllSessions() {
-  if (!confirm('Move all chats to Recently Deleted?')) return;
-  send({ type: 'sessions:deleteAll' });
+  openConfirmModal({
+    title: 'Move All Chats',
+    message: 'Move all chats to Recently Deleted? You can restore them for 30 days.',
+    confirmLabel: 'Move All Chats',
+    danger: true,
+    onConfirm: () => send({ type: 'sessions:deleteAll' }),
+  });
 }
 
 export function renameSession(id, name) {
@@ -164,29 +198,21 @@ export function requestDeletedChats() {
   send({ type: 'trash:chats:list' });
 }
 
-export function setChatSidebarView(view) {
-  chatSidebarView = view === 'deleted' ? 'deleted' : 'active';
-  renderChatSidebar();
-}
-
 export function getCurrentSession() {
   return sessions.find((session) => session.id === currentSessionId) || null;
 }
 
-function renderChatSidebar() {
-  const chatPane = document.getElementById('sidebar-chat-pane');
-  if (!chatPane) return;
-  document.querySelectorAll('[data-chat-view]').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.chatView === chatSidebarView);
-  });
-  document.getElementById('session-list')?.classList.toggle('hidden', chatSidebarView !== 'active');
-  document.getElementById('deleted-chat-list')?.classList.toggle('hidden', chatSidebarView !== 'deleted');
-
-  if (chatSidebarView === 'active') renderActiveSessions();
-  else renderDeletedChats();
+export function openChatTrashView() {
+  const overlay = document.getElementById('sidebar-trash-overlay');
+  if (!overlay) return;
+  overlay.dataset.context = 'chats';
+  document.getElementById('sidebar-trash-title').textContent = 'Recently Deleted';
+  document.getElementById('sidebar-trash-subtitle').textContent = 'Chats waiting for permanent deletion';
+  renderChatTrashOverlay();
+  requestDeletedChats();
 }
 
-function renderActiveSessions() {
+function renderChatSidebar() {
   const list = document.getElementById('session-list');
   if (!list) return;
 
@@ -230,14 +256,13 @@ function renderActiveSessions() {
   });
 }
 
-function renderDeletedChats() {
-  const list = document.getElementById('deleted-chat-list');
-  const bar = document.getElementById('deleted-chat-selection-bar');
+function renderDeletedChatsInto(list, bar) {
   if (!list || !bar) return;
 
   if (deletedChats.length === 0) {
     list.innerHTML = `<div class="sidebar-empty-state">No recently deleted chats</div>`;
     bar.classList.add('hidden');
+    bar.innerHTML = '';
     return;
   }
 
@@ -245,6 +270,7 @@ function renderDeletedChats() {
     <div class="deleted-chat-item" data-id="${escHtml(chat.id)}">
       <label class="deleted-chat-check">
         <input type="checkbox" ${deletedSelection.has(chat.id) ? 'checked' : ''} data-chat-check="${escHtml(chat.id)}" />
+        <span class="selection-checkmark" aria-hidden="true"></span>
       </label>
       <div class="deleted-chat-copy">
         <div class="deleted-chat-name">${escHtml(chat.name || 'Deleted Chat')}</div>
@@ -261,7 +287,7 @@ function renderDeletedChats() {
     input.addEventListener('change', () => {
       if (input.checked) deletedSelection.add(input.dataset.chatCheck);
       else deletedSelection.delete(input.dataset.chatCheck);
-      renderDeletedChatSelectionBar();
+      renderDeletedSelectionBar(bar);
     });
   });
 
@@ -273,16 +299,20 @@ function renderDeletedChats() {
 
   list.querySelectorAll('[data-chat-delete]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      if (!confirm('Delete this chat permanently? This cannot be undone.')) return;
-      send({ type: 'trash:chats:deleteForever', ids: [btn.dataset.chatDelete] });
+      openConfirmModal({
+        title: 'Delete Chat Permanently',
+        message: 'Delete this chat permanently? This cannot be undone.',
+        confirmLabel: 'Delete Forever',
+        danger: true,
+        onConfirm: () => send({ type: 'trash:chats:deleteForever', ids: [btn.dataset.chatDelete] }),
+      });
     });
   });
 
-  renderDeletedChatSelectionBar();
+  renderDeletedSelectionBar(bar);
 }
 
-function renderDeletedChatSelectionBar() {
-  const bar = document.getElementById('deleted-chat-selection-bar');
+function renderDeletedSelectionBar(bar) {
   if (!bar) return;
   if (!deletedSelection.size) {
     bar.classList.add('hidden');
@@ -293,17 +323,32 @@ function renderDeletedChatSelectionBar() {
   const ids = [...deletedSelection];
   bar.innerHTML = `
     <span>${ids.length} selected</span>
-    <button class="sidebar-action-btn" id="deleted-chat-restore-selected">Restore</button>
-    <button class="sidebar-action-btn danger" id="deleted-chat-delete-selected">Delete Forever</button>
+    <div class="sidebar-selection-actions">
+      <button class="sidebar-action-btn" id="deleted-chat-restore-selected">Restore</button>
+      <button class="sidebar-action-btn danger" id="deleted-chat-delete-selected">Delete Forever</button>
+    </div>
   `;
   bar.classList.remove('hidden');
   bar.querySelector('#deleted-chat-restore-selected')?.addEventListener('click', () => {
     send({ type: 'trash:chats:restore', ids });
   });
   bar.querySelector('#deleted-chat-delete-selected')?.addEventListener('click', () => {
-    if (!confirm('Delete the selected chats permanently? This cannot be undone.')) return;
-    send({ type: 'trash:chats:deleteForever', ids });
+    openConfirmModal({
+      title: 'Delete Chats Permanently',
+      message: `Delete ${ids.length} selected chat${ids.length === 1 ? '' : 's'} permanently? This cannot be undone.`,
+      confirmLabel: 'Delete Forever',
+      danger: true,
+      onConfirm: () => send({ type: 'trash:chats:deleteForever', ids }),
+    });
   });
+}
+
+function renderChatTrashOverlay() {
+  if (!isChatTrashOverlayOpen()) return;
+  renderDeletedChatsInto(
+    document.getElementById('sidebar-trash-list'),
+    document.getElementById('sidebar-trash-selection-bar')
+  );
 }
 
 function startInlineRename(el) {
@@ -378,5 +423,9 @@ function groupByDate(allSessions) {
 }
 
 function escHtml(str) {
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }

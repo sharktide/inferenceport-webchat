@@ -1,17 +1,17 @@
 // app.js — bootstrap, input handling, sidebar, attach, paste
 import { send, on } from './ws.js';
-import { isAuthenticated, logout, getTempId, getClientId, onAuthChange } from './auth.js';
+import { isAuthenticated, logout } from './auth.js';
 import {
   createNewSession, showWelcomeScreen,
-  switchSession, currentSessionId, onSessionChange, setChatSidebarView, deleteAllSessions,
+  switchSession, currentSessionId, onSessionChange, deleteAllSessions, openChatTrashView,
 } from './sessions.js';
 import { submitMessage, renderSession, setActiveSession, getIsStreaming } from './chat.js';
-import { openAuthModal, closeModal, openPasteEditor } from './modals.js';
-import { openSettings, applyTheme } from './settings.js';
+import { openAuthModal } from './modals.js';
+import { openSettings } from './settings.js';
 import { showNotification, autoResize, escHtml } from './ui.js';
 import {
   initMediaSidebar, openMediaPicker, uploadFileToLibrary,
-  uploadTextToLibrary, mediaItemToAttachment,
+  uploadTextToLibrary, mediaItemToAttachment, openMediaTrashView, refreshMediaList,
 } from './media.js';
 
 // ── Apply theme immediately from localStorage (no flash) ──────────────────
@@ -57,6 +57,12 @@ const sidebar   = document.getElementById('sidebar');
 const toggleBtn = document.getElementById('toggle-sidebar-btn');
 const sidebarChatPane = document.getElementById('sidebar-chat-pane');
 const sidebarMediaPane = document.getElementById('sidebar-media-pane');
+const sidebarSessionsHost = document.getElementById('sidebar-sessions');
+const sidebarTrashOverlay = document.getElementById('sidebar-trash-overlay');
+const sidebarTrashBtn = document.getElementById('sidebar-trash-btn');
+const sidebarTrashBackBtn = document.getElementById('sidebar-trash-back');
+
+let sidebarMode = 'chats';
 
 function expandSidebar()  { sidebar?.classList.remove('collapsed'); sidebar?.classList.add('expanded'); }
 function collapseSidebar(){ sidebar?.classList.remove('expanded'); sidebar?.classList.add('collapsed'); }
@@ -64,15 +70,29 @@ function toggleSidebar()  { sidebar?.classList.contains('expanded') ? collapseSi
 
 toggleBtn?.addEventListener('click', toggleSidebar);
 
+function closeTrashOverlay() {
+  sidebarSessionsHost?.classList.remove('trash-open');
+  sidebarTrashOverlay?.setAttribute('aria-hidden', 'true');
+}
+
+function openTrashOverlay() {
+  sidebarSessionsHost?.classList.add('trash-open');
+  sidebarTrashOverlay?.setAttribute('aria-hidden', 'false');
+  if (sidebarMode === 'media') openMediaTrashView();
+  else openChatTrashView();
+}
+
 function setSidebarMode(mode = 'chats') {
-  const mediaMode = mode === 'media';
+  sidebarMode = mode === 'media' ? 'media' : 'chats';
+  closeTrashOverlay();
+  const mediaMode = sidebarMode === 'media';
   document.querySelectorAll('[data-sidebar-mode]').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.sidebarMode === mode);
+    btn.classList.toggle('active', btn.dataset.sidebarMode === sidebarMode);
   });
   sidebarChatPane?.classList.toggle('hidden', mediaMode);
   sidebarMediaPane?.classList.toggle('hidden', !mediaMode);
   if (mediaMode) {
-    import('./media.js').then(({ refreshMediaList }) => refreshMediaList());
+    refreshMediaList();
   }
 }
 
@@ -80,9 +100,8 @@ document.querySelectorAll('[data-sidebar-mode]').forEach((btn) => {
   btn.addEventListener('click', () => setSidebarMode(btn.dataset.sidebarMode));
 });
 
-document.querySelectorAll('[data-chat-view]').forEach((btn) => {
-  btn.addEventListener('click', () => setChatSidebarView(btn.dataset.chatView));
-});
+sidebarTrashBtn?.addEventListener('click', openTrashOverlay);
+sidebarTrashBackBtn?.addEventListener('click', closeTrashOverlay);
 
 setSidebarMode('chats');
 
@@ -102,6 +121,7 @@ setSidebarMode('chats');
   function closeSidebar() {
     sidebar?.classList.remove('expanded'); sidebar?.classList.add('collapsed');
     backdrop.classList.remove('visible');
+    closeTrashOverlay();
   }
 
   backdrop.addEventListener('click', closeSidebar);
@@ -111,6 +131,7 @@ setSidebarMode('chats');
     sidebar?.classList.contains('expanded') ? closeSidebar() : openSidebar();
   });
   document.getElementById('mobile-newchat-btn')?.addEventListener('click', () => {
+    closeTrashOverlay();
     setSidebarMode('chats');
     showWelcomeScreen();
     closeSidebar();
@@ -163,6 +184,7 @@ setSidebarMode('chats');
 // ── New chat — just show the welcome screen ───────────────────────────────
 
 document.getElementById('new-chat-btn')?.addEventListener('click', () => {
+  closeTrashOverlay();
   setSidebarMode('chats');
   showWelcomeScreen();
   const ci = document.getElementById('center-input');
@@ -194,16 +216,6 @@ onSessionChange((event, data) => {
 });
 
 // Show welcome screen on login/auth
-onAuthChange(({ currentUser }) => {
-  if (currentUser) {
-    // After login show welcome screen (sessions will load and may switch to one)
-    // Only show welcome if we're not already in a chat
-    const chatView = document.getElementById('chat-view');
-    if (chatView?.classList.contains('hidden')) {
-      // Already on welcome, nothing to do
-    }
-  }
-});
 
 // ── Center input (welcome view) ───────────────────────────────────────────
 

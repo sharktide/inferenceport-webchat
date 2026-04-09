@@ -1,17 +1,28 @@
 import { loadAuth, getTempId } from './auth.js';
-import { openModal, closeModal, openImageModal } from './modals.js';
-import { escHtml, showNotification } from './ui.js';
+import {
+  openModal,
+  closeModal,
+  openImageModal,
+  openConfirmModal,
+  openTextPromptModal,
+} from './modals.js';
+import { escHtml, showContextMenu, showNotification } from './ui.js';
 import { on } from './ws.js';
 
 const mediaUrlCache = new Map();
+const DEFAULT_QUOTA_BYTES = 5 * 1024 * 1024 * 1024;
 
 const state = {
-  view: 'active',
   parentId: null,
   items: [],
   breadcrumbs: [],
   selectedIds: new Set(),
   editor: null,
+  usage: null,
+  trash: {
+    items: [],
+    selectedIds: new Set(),
+  },
 };
 
 function authHeaders(extra = {}) {
@@ -26,8 +37,12 @@ async function apiFetch(url, options = {}, expectJson = true) {
   const headers = authHeaders(options.headers || {});
   const res = await fetch(url, { ...options, headers });
   if (!res.ok) {
-    const data = expectJson ? await res.json().catch(() => ({})) : null;
-    throw new Error(data?.error || `Request failed (${res.status})`);
+    const data = await res.json().catch(() => ({}));
+    const err = new Error(data?.message || data?.error || `Request failed (${res.status})`);
+    err.code = data?.error || 'request_failed';
+    err.status = res.status;
+    err.usage = data?.usage || null;
+    throw err;
   }
   return expectJson ? res.json() : res;
 }
@@ -35,17 +50,18 @@ async function apiFetch(url, options = {}, expectJson = true) {
 function bytesLabel(size = 0) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 function kindIcon(item) {
-  if (item.type === 'folder') return '📁';
-  if (item.kind === 'image') return '🖼️';
-  if (item.kind === 'video') return '🎬';
-  if (item.kind === 'audio') return '🎵';
-  if (item.kind === 'rich_text') return '📝';
-  if (item.kind === 'text') return '📄';
-  return '📦';
+  if (item.type === 'folder') return '&#128193;';
+  if (item.kind === 'image') return '&#128444;';
+  if (item.kind === 'video') return '&#127909;';
+  if (item.kind === 'audio') return '&#127925;';
+  if (item.kind === 'rich_text') return '&#128221;';
+  if (item.kind === 'text') return '&#128196;';
+  return '&#128230;';
 }
 
 function isTextLike(item) {
@@ -65,6 +81,104 @@ function blobToDataUrl(blob) {
   });
 }
 
+function plainTextFromHtml(html) {
+  const doc = new DOMParser().parseFromString(html || '', 'text/html');
+  return doc.body?.textContent?.trim() || '';
+}
+
+function getOverlay() {
+  return document.getElementById('sidebar-trash-overlay');
+}
+
+function getOverlayList() {
+  return document.getElementById('sidebar-trash-list');
+}
+
+function getOverlayBar() {
+  return document.getElementById('sidebar-trash-selection-bar');
+}
+
+function isMediaPaneVisible() {
+  return !document.getElementById('sidebar-media-pane')?.classList.contains('hidden');
+}
+
+function isMediaTrashOverlayOpen() {
+  const overlay = getOverlay();
+  const host = document.getElementById('sidebar-sessions');
+  return !!overlay && !!host && host.classList.contains('trash-open') && overlay.dataset.context === 'media';
+}
+
+function updateUsage(usage) {
+  if (!usage) return;
+  state.usage = {
+    quotaBytes: usage.quotaBytes || DEFAULT_QUOTA_BYTES,
+    totalBytes: usage.totalBytes || 0,
+    activeBytes: usage.activeBytes || 0,
+    trashBytes: usage.trashBytes || 0,
+    remainingBytes: usage.remainingBytes ?? Math.max(0, (usage.quotaBytes || DEFAULT_QUOTA_BYTES) - (usage.totalBytes || 0)),
+    percentUsed: usage.percentUsed || 0,
+    fileCount: usage.fileCount || 0,
+    trashFileCount: usage.trashFileCount || 0,
+  };
+  renderUsagePanel();
+}
+
+function usageTone(usage) {
+  const percent = usage?.percentUsed || 0;
+  if (percent >= 92) return 'danger';
+  if (percent >= 75) return 'warning';
+  return 'normal';
+}
+
+function renderUsagePanel() {
+  const panel = document.getElementById('media-usage-panel');
+  if (!panel) return;
+  const usage = state.usage || {
+    quotaBytes: DEFAULT_QUOTA_BYTES,
+    totalBytes: 0,
+    activeBytes: 0,
+    trashBytes: 0,
+    remainingBytes: DEFAULT_QUOTA_BYTES,
+    percentUsed: 0,
+  };
+  const tone = usageTone(usage);
+  panel.className = `media-usage-panel ${tone}`;
+  panel.innerHTML = `
+    <div class="media-usage-copy">
+      <div class="media-usage-label">Cloud Storage</div>
+      <div class="media-usage-values">${bytesLabel(usage.totalBytes)} of ${bytesLabel(usage.quotaBytes)} used</div>
+    </div>
+    <div class="media-usage-track">
+      <div class="media-usage-fill" style="width:${Math.min(100, usage.percentUsed || 0)}%"></div>
+    </div>
+    <div class="media-usage-meta">
+      <span>${bytesLabel(usage.remainingBytes)} free</span>
+      <span>${usage.trashBytes ? `${bytesLabel(usage.trashBytes)} in trash` : 'Trash empties after 30 days'}</span>
+    </div>
+  `;
+}
+
+function handleMediaError(err, fallbackMessage) {
+  if (err?.usage) updateUsage(err.usage);
+  showNotification({
+    type: err?.code === 'media:quota_exceeded' ? 'warning' : 'error',
+    message: err?.message || fallbackMessage,
+    duration: 3200,
+  });
+}
+
+async function refreshAllMediaViews() {
+  const tasks = [];
+  if (isMediaPaneVisible()) tasks.push(refreshMediaList());
+  if (isMediaTrashOverlayOpen()) tasks.push(refreshMediaTrashView());
+  await Promise.all(tasks);
+}
+
+async function getCurrentSessionId() {
+  const sessions = await import('./sessions.js');
+  return sessions.currentSessionId || null;
+}
+
 export async function uploadFileToLibrary(file, { parentId = null, sessionId = null, kind = null } = {}) {
   const body = await file.arrayBuffer();
   const res = await apiFetch('/api/media/upload', {
@@ -78,6 +192,7 @@ export async function uploadFileToLibrary(file, { parentId = null, sessionId = n
     },
     body,
   });
+  updateUsage(res.usage);
   await refreshMediaList();
   return res.item;
 }
@@ -95,6 +210,7 @@ export async function uploadTextToLibrary(name, content, { parentId = null, sess
     },
     body,
   });
+  updateUsage(res.usage);
   await refreshMediaList();
   return res.item;
 }
@@ -125,8 +241,7 @@ export async function downloadMediaItem(item) {
 }
 
 export async function loadMediaText(id) {
-  const res = await apiFetch(`/api/media/${encodeURIComponent(id)}/text`);
-  return res;
+  return apiFetch(`/api/media/${encodeURIComponent(id)}/text`);
 }
 
 export async function saveMediaText(id, payload) {
@@ -135,6 +250,7 @@ export async function saveMediaText(id, payload) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+  updateUsage(res.usage);
   await refreshMediaList();
   return res.item;
 }
@@ -145,76 +261,95 @@ async function createFolder(name, parentId) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, parentId }),
   });
+  updateUsage(res.usage);
   await refreshMediaList();
   return res.item;
 }
 
-async function createDocument({ name, richText, parentId }) {
+async function createDocument({ name, richText, parentId, sessionId = null }) {
   const res = await apiFetch('/api/media/documents', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, richText, parentId }),
+    body: JSON.stringify({ name, richText, parentId, sessionId }),
   });
+  updateUsage(res.usage);
   await refreshMediaList();
   return res.item;
 }
 
 async function trashItems(ids) {
-  await apiFetch('/api/media/trash', {
+  const res = await apiFetch('/api/media/trash', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids }),
   });
   state.selectedIds.clear();
-  await refreshMediaList();
+  state.trash.selectedIds.clear();
+  updateUsage(res.usage);
+  await refreshAllMediaViews();
 }
 
 async function restoreItems(ids) {
-  await apiFetch('/api/media/restore', {
+  const res = await apiFetch('/api/media/restore', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids }),
   });
   state.selectedIds.clear();
-  await refreshMediaList();
+  state.trash.selectedIds.clear();
+  updateUsage(res.usage);
+  await refreshAllMediaViews();
 }
 
 async function deleteItemsForever(ids) {
-  await apiFetch('/api/media/deleteForever', {
+  const res = await apiFetch('/api/media/deleteForever', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids }),
   });
   state.selectedIds.clear();
-  await refreshMediaList();
+  state.trash.selectedIds.clear();
+  updateUsage(res.usage);
+  await refreshAllMediaViews();
 }
 
 async function moveItems(ids, parentId = null) {
-  await apiFetch('/api/media/move', {
+  const res = await apiFetch('/api/media/move', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids, parentId }),
   });
   state.selectedIds.clear();
+  updateUsage(res.usage);
   await refreshMediaList();
 }
 
-async function loadList() {
-  const res = await apiFetch(`/api/media?view=${encodeURIComponent(state.view)}${state.parentId ? `&parentId=${encodeURIComponent(state.parentId)}` : ''}`);
+async function loadActiveList() {
+  const res = await apiFetch(`/api/media?view=active${state.parentId ? `&parentId=${encodeURIComponent(state.parentId)}` : ''}`);
   state.items = res.items || [];
+  const visibleIds = new Set(state.items.map((item) => item.id));
+  state.selectedIds = new Set([...state.selectedIds].filter((id) => visibleIds.has(id)));
   state.breadcrumbs = res.breadcrumbs || [];
+  updateUsage(res.usage);
   renderMediaList();
 }
 
-function isMediaPaneVisible() {
-  return !document.getElementById('sidebar-media-pane')?.classList.contains('hidden');
+async function loadTrashList() {
+  const res = await apiFetch('/api/media?view=trash');
+  state.trash.items = res.items || [];
+  const visibleIds = new Set(state.trash.items.map((item) => item.id));
+  state.trash.selectedIds = new Set([...state.trash.selectedIds].filter((id) => visibleIds.has(id)));
+  updateUsage(res.usage);
+  renderMediaTrashOverlay();
 }
 
 export async function refreshMediaList() {
   if (!document.getElementById('media-list')) return;
-  await loadList().catch((err) => {
-    showNotification({ type: 'error', message: err.message || 'Failed to load media', duration: 3000 });
-  });
+  await loadActiveList().catch((err) => handleMediaError(err, 'Failed to load media'));
+}
+
+async function refreshMediaTrashView() {
+  await loadTrashList().catch((err) => handleMediaError(err, 'Failed to load trash'));
 }
 
 function setEditorStatus(message = '', type = 'info') {
@@ -256,13 +391,26 @@ function renderRichTextToolbar(toolbar, contentEl) {
     btn.addEventListener('click', () => {
       contentEl.focus();
       if (command === 'createLink') {
-        const url = prompt('Link URL');
-        if (url) document.execCommand(command, false, url);
-      } else if (command === 'formatBlock') {
-        document.execCommand(command, false, 'blockquote');
-      } else {
-        document.execCommand(command, false, null);
+        openTextPromptModal({
+          title: 'Insert Link',
+          label: 'URL',
+          placeholder: 'https://example.com',
+          confirmLabel: 'Insert',
+          onSubmit: (url) => {
+            const value = url.trim();
+            if (!value) return false;
+            contentEl.focus();
+            document.execCommand(command, false, value);
+            return true;
+          },
+        });
+        return;
       }
+      if (command === 'formatBlock') {
+        document.execCommand(command, false, 'blockquote');
+        return;
+      }
+      document.execCommand(command, false, null);
     });
     toolbar.appendChild(btn);
   });
@@ -274,7 +422,7 @@ async function openEditor(item) {
   const metaEl = document.getElementById('media-editor-meta');
   const contentWrap = document.getElementById('media-editor-content');
   const toolbar = document.getElementById('media-editor-toolbar');
-  if (!panel || !contentWrap || !toolbar) return;
+  if (!panel || !contentWrap || !toolbar || !titleEl || !metaEl) return;
 
   const { content } = await loadMediaText(item.id);
   state.editor = {
@@ -338,26 +486,13 @@ function renderSelectionBar() {
   }
 
   const downloadable = selected.filter((item) => item.type === 'file');
-  if (state.view === 'trash') {
-    bar.innerHTML = `
-      <span>${selected.length} selected</span>
-      <button class="sidebar-action-btn" id="media-bulk-restore">Restore</button>
-      <button class="sidebar-action-btn danger" id="media-bulk-delete">Delete Forever</button>
-    `;
-    bar.classList.remove('hidden');
-    bar.querySelector('#media-bulk-restore')?.addEventListener('click', () => restoreItems(selected.map((item) => item.id)));
-    bar.querySelector('#media-bulk-delete')?.addEventListener('click', () => {
-      if (!confirm('Delete these items permanently? This cannot be undone.')) return;
-      deleteItemsForever(selected.map((item) => item.id));
-    });
-    return;
-  }
-
   bar.innerHTML = `
     <span>${selected.length} selected</span>
-    ${downloadable.length ? '<button class="sidebar-action-btn" id="media-bulk-download">Download</button>' : ''}
-    <button class="sidebar-action-btn" id="media-bulk-move">Move</button>
-    <button class="sidebar-action-btn danger" id="media-bulk-trash">Move to Trash</button>
+    <div class="sidebar-selection-actions">
+      ${downloadable.length ? '<button class="sidebar-action-btn" id="media-bulk-download">Download</button>' : ''}
+      <button class="sidebar-action-btn" id="media-bulk-move">Move</button>
+      <button class="sidebar-action-btn danger" id="media-bulk-trash">Move to Trash</button>
+    </div>
   `;
   bar.classList.remove('hidden');
   bar.querySelector('#media-bulk-download')?.addEventListener('click', async () => {
@@ -371,18 +506,34 @@ function renderSelectionBar() {
       onSelect: (parentId) => moveItems(selected.map((item) => item.id), parentId),
     });
   });
-  bar.querySelector('#media-bulk-trash')?.addEventListener('click', () => trashItems(selected.map((item) => item.id)));
+  bar.querySelector('#media-bulk-trash')?.addEventListener('click', () => {
+    openConfirmModal({
+      title: 'Move Items To Trash',
+      message: `Move ${selected.length} selected item${selected.length === 1 ? '' : 's'} to trash?`,
+      confirmLabel: 'Move to Trash',
+      danger: true,
+      onConfirm: () => trashItems(selected.map((item) => item.id)).catch((err) => handleMediaError(err, 'Unable to move items to trash')),
+    });
+  });
 }
 
 function renderBreadcrumbs() {
   const el = document.getElementById('media-breadcrumbs');
   if (!el) return;
-  const crumbs = [{ id: null, name: state.view === 'trash' ? 'Trash' : 'Library' }, ...state.breadcrumbs];
-  el.innerHTML = crumbs.map((crumb, index) => `
-    <button class="media-breadcrumb${index === crumbs.length - 1 ? ' active' : ''}" data-id="${crumb.id || ''}">
-      ${escHtml(crumb.name)}
-    </button>
-  `).join('<span class="media-breadcrumb-sep">/</span>');
+  if (!state.breadcrumbs.length) {
+    el.innerHTML = '';
+    el.classList.add('hidden');
+    return;
+  }
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <span class="media-breadcrumb-label">Folder</span>
+    ${state.breadcrumbs.map((crumb, index) => `
+      <button class="media-breadcrumb${index === state.breadcrumbs.length - 1 ? ' active' : ''}" data-id="${crumb.id}">
+        ${escHtml(crumb.name)}
+      </button>
+    `).join('<span class="media-breadcrumb-sep">/</span>')}
+  `;
   el.querySelectorAll('.media-breadcrumb').forEach((btn) => {
     btn.addEventListener('click', async () => {
       state.parentId = btn.dataset.id || null;
@@ -391,20 +542,12 @@ function renderBreadcrumbs() {
   });
 }
 
-function renderMediaList() {
-  renderBreadcrumbs();
-  renderSelectionBar();
-  const list = document.getElementById('media-list');
-  if (!list) return;
-  if (!state.items.length) {
-    list.innerHTML = `<div class="sidebar-empty-state">${state.view === 'trash' ? 'Trash is empty' : 'No media yet'}</div>`;
-    return;
-  }
-
-  list.innerHTML = state.items.map((item) => `
-    <div class="media-list-item" data-id="${escHtml(item.id)}">
+function buildMediaRows(items, { trash = false } = {}) {
+  return items.map((item) => `
+    <div class="media-list-item${trash ? ' trash-item' : ''}" data-id="${escHtml(item.id)}">
       <label class="media-item-check">
-        <input type="checkbox" ${state.selectedIds.has(item.id) ? 'checked' : ''} data-media-check="${escHtml(item.id)}" />
+        <input type="checkbox" ${trash ? (state.trash.selectedIds.has(item.id) ? 'checked' : '') : (state.selectedIds.has(item.id) ? 'checked' : '')} data-media-check="${escHtml(item.id)}" />
+        <span class="selection-checkmark" aria-hidden="true"></span>
       </label>
       <button class="media-item-main" data-media-open="${escHtml(item.id)}">
         <span class="media-item-icon">${kindIcon(item)}</span>
@@ -414,7 +557,7 @@ function renderMediaList() {
         </span>
       </button>
       <div class="media-item-actions">
-        ${state.view === 'trash'
+        ${trash
           ? `<button class="media-item-action" data-media-restore="${escHtml(item.id)}">Restore</button>
              <button class="media-item-action danger" data-media-delete="${escHtml(item.id)}">Delete</button>`
           : `${item.type === 'file' ? `<button class="media-item-action" data-media-download="${escHtml(item.id)}">Download</button>` : ''}
@@ -422,6 +565,21 @@ function renderMediaList() {
       </div>
     </div>
   `).join('');
+}
+
+function renderMediaList() {
+  renderBreadcrumbs();
+  renderSelectionBar();
+  renderUsagePanel();
+
+  const list = document.getElementById('media-list');
+  if (!list) return;
+  if (!state.items.length) {
+    list.innerHTML = `<div class="sidebar-empty-state">No media yet</div>`;
+    return;
+  }
+
+  list.innerHTML = buildMediaRows(state.items);
 
   list.querySelectorAll('[data-media-check]').forEach((input) => {
     input.addEventListener('change', () => {
@@ -434,9 +592,7 @@ function renderMediaList() {
   list.querySelectorAll('[data-media-open]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const item = state.items.find((entry) => entry.id === btn.dataset.mediaOpen);
-      if (item) handleMediaItemClick(item).catch((err) => {
-        showNotification({ type: 'error', message: err.message || 'Unable to open item', duration: 3000 });
-      });
+      if (item) handleMediaItemClick(item).catch((err) => handleMediaError(err, 'Unable to open media item'));
     });
   });
 
@@ -451,65 +607,208 @@ function renderMediaList() {
   list.querySelectorAll('[data-media-trash]').forEach((btn) => {
     btn.addEventListener('click', (event) => {
       event.stopPropagation();
-      trashItems([btn.dataset.mediaTrash]);
+      openConfirmModal({
+        title: 'Move To Trash',
+        message: 'Move this item to trash?',
+        confirmLabel: 'Move to Trash',
+        danger: true,
+        onConfirm: () => trashItems([btn.dataset.mediaTrash]).catch((err) => handleMediaError(err, 'Unable to move item to trash')),
+      });
+    });
+  });
+}
+
+function renderTrashSelectionBar() {
+  const bar = getOverlayBar();
+  if (!bar || !isMediaTrashOverlayOpen()) return;
+  const ids = [...state.trash.selectedIds];
+  if (!ids.length) {
+    bar.classList.add('hidden');
+    bar.innerHTML = '';
+    return;
+  }
+
+  bar.innerHTML = `
+    <span>${ids.length} selected</span>
+    <div class="sidebar-selection-actions">
+      <button class="sidebar-action-btn" id="media-trash-restore-selected">Restore</button>
+      <button class="sidebar-action-btn danger" id="media-trash-delete-selected">Delete Forever</button>
+    </div>
+  `;
+  bar.classList.remove('hidden');
+  bar.querySelector('#media-trash-restore-selected')?.addEventListener('click', () => {
+    restoreItems(ids).catch((err) => handleMediaError(err, 'Unable to restore media'));
+  });
+  bar.querySelector('#media-trash-delete-selected')?.addEventListener('click', () => {
+    openConfirmModal({
+      title: 'Delete Permanently',
+      message: `Delete ${ids.length} selected item${ids.length === 1 ? '' : 's'} permanently? This cannot be undone.`,
+      confirmLabel: 'Delete Forever',
+      danger: true,
+      onConfirm: () => deleteItemsForever(ids).catch((err) => handleMediaError(err, 'Unable to delete media permanently')),
+    });
+  });
+}
+
+function renderMediaTrashOverlay() {
+  if (!isMediaTrashOverlayOpen()) return;
+  const list = getOverlayList();
+  const bar = getOverlayBar();
+  if (!list || !bar) return;
+
+  if (!state.trash.items.length) {
+    list.innerHTML = `<div class="sidebar-empty-state">Trash is empty</div>`;
+    bar.classList.add('hidden');
+    bar.innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = buildMediaRows(state.trash.items, { trash: true });
+  renderTrashSelectionBar();
+
+  list.querySelectorAll('[data-media-check]').forEach((input) => {
+    input.addEventListener('change', () => {
+      if (input.checked) state.trash.selectedIds.add(input.dataset.mediaCheck);
+      else state.trash.selectedIds.delete(input.dataset.mediaCheck);
+      renderTrashSelectionBar();
+    });
+  });
+
+  list.querySelectorAll('[data-media-open]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const item = state.trash.items.find((entry) => entry.id === btn.dataset.mediaOpen);
+      if (item?.kind === 'image') {
+        getMediaObjectUrl(item.id).then((url) => openImageModal(url)).catch((err) => handleMediaError(err, 'Unable to preview media'));
+      }
     });
   });
 
   list.querySelectorAll('[data-media-restore]').forEach((btn) => {
-    btn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      restoreItems([btn.dataset.mediaRestore]);
+    btn.addEventListener('click', () => {
+      restoreItems([btn.dataset.mediaRestore]).catch((err) => handleMediaError(err, 'Unable to restore media'));
     });
   });
 
   list.querySelectorAll('[data-media-delete]').forEach((btn) => {
-    btn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      if (!confirm('Delete this item permanently? This cannot be undone.')) return;
-      deleteItemsForever([btn.dataset.mediaDelete]);
+    btn.addEventListener('click', () => {
+      openConfirmModal({
+        title: 'Delete Permanently',
+        message: 'Delete this item permanently? This cannot be undone.',
+        confirmLabel: 'Delete Forever',
+        danger: true,
+        onConfirm: () => deleteItemsForever([btn.dataset.mediaDelete]).catch((err) => handleMediaError(err, 'Unable to delete media permanently')),
+      });
     });
   });
 }
 
-async function promptForFolder() {
-  const name = prompt('Folder name');
-  if (!name) return;
-  await createFolder(name, state.parentId);
+function openNamePromptModal({ title, label, placeholder, value = '', confirmLabel, onSubmit }) {
+  openTextPromptModal({
+    title,
+    label,
+    placeholder,
+    value,
+    confirmLabel,
+    onSubmit: (nextValue) => {
+      const trimmed = nextValue.trim();
+      if (!trimmed) return false;
+      return onSubmit(trimmed);
+    },
+  });
 }
 
-async function promptForDocument(richText = false) {
-  const fallback = richText ? 'Untitled Document.html' : 'Untitled Document.txt';
-  const name = prompt(richText ? 'Rich text file name' : 'Text file name', fallback);
-  if (!name) return;
-  const item = await createDocument({ name, richText, parentId: state.parentId });
-  if (item) openEditor(item);
+function promptForFolder() {
+  openNamePromptModal({
+    title: 'New Folder',
+    label: 'Folder name',
+    placeholder: 'Folder name',
+    confirmLabel: 'Create Folder',
+    onSubmit: async (name) => {
+      try {
+        await createFolder(name, state.parentId);
+      } catch (err) {
+        handleMediaError(err, 'Unable to create folder');
+        return false;
+      }
+      return true;
+    },
+  });
+}
+
+function promptForDocument({ richText = false }) {
+  const extension = richText ? '.html' : '.txt';
+  const defaultName = richText ? 'Untitled Document.html' : 'Untitled Note.txt';
+  openNamePromptModal({
+    title: richText ? 'New Rich Text File' : 'New Plain Text File',
+    label: 'File name',
+    placeholder: defaultName,
+    value: defaultName,
+    confirmLabel: 'Create File',
+    onSubmit: async (name) => {
+      const finalName = /\.[a-z0-9]+$/i.test(name) ? name : `${name}${extension}`;
+      try {
+        const item = await createDocument({
+          name: finalName,
+          richText,
+          parentId: state.parentId,
+          sessionId: await getCurrentSessionId(),
+        });
+        await openEditor(item);
+      } catch (err) {
+        handleMediaError(err, 'Unable to create document');
+        return false;
+      }
+      return true;
+    },
+  });
+}
+
+function openCreateMenu(event) {
+  event.preventDefault();
+  const btn = event.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  showContextMenu(rect.left, rect.bottom + 8, [
+    { label: 'Rich Text', icon: '+', onClick: () => promptForDocument({ richText: true }) },
+    { label: 'Plain Text', icon: '+', onClick: () => promptForDocument({ richText: false }) },
+    { label: 'File Upload', icon: '+', onClick: () => document.getElementById('media-upload-input')?.click() },
+    { label: 'Folder', icon: '+', onClick: () => promptForFolder() },
+  ]);
 }
 
 export async function mediaItemToAttachment(item) {
-  if (!item || !isAttachable(item)) return null;
+  if (!item || item.type !== 'file' || !isAttachable(item)) return null;
   if (item.kind === 'image') {
     const blob = await fetchMediaBlob(item.id);
     const dataUrl = await blobToDataUrl(blob);
     const comma = dataUrl.indexOf(',');
-    return {
-      type: 'image',
-      name: item.name,
-      mimeType: item.mimeType || blob.type || 'image/png',
-      base64: dataUrl.slice(comma + 1),
-      mediaId: item.id,
-    };
+    const mimeType = dataUrl.slice(5, dataUrl.indexOf(';'));
+    const base64 = dataUrl.slice(comma + 1);
+    return { type: 'image', name: item.name, base64, mimeType, mediaId: item.id };
   }
-  const loaded = await loadMediaText(item.id);
-  return {
-    type: 'text',
-    name: item.name,
-    content: loaded.content || '',
-    mediaId: item.id,
-  };
+  const payload = await loadMediaText(item.id);
+  const content = item.kind === 'rich_text'
+    ? plainTextFromHtml(payload.content)
+    : (payload.content || '');
+  return { type: 'text', name: item.name, content, mediaId: item.id };
 }
 
-export function openMediaPicker({ onSelect, allowedKinds = ['image', 'text', 'rich_text'] }) {
-  const pickerState = {
+function buildPickerBreadcrumbs(parentId, breadcrumbs) {
+  const parts = [
+    `<button class="media-breadcrumb${!parentId ? ' active' : ''}" data-picker-root="1">Library</button>`,
+    ...breadcrumbs.map((crumb, index) => `
+      <span class="media-breadcrumb-sep">/</span>
+      <button class="media-breadcrumb${index === breadcrumbs.length - 1 ? ' active' : ''}" data-picker-crumb="${escHtml(crumb.id)}">${escHtml(crumb.name)}</button>
+    `),
+  ];
+  return `<div class="media-picker-breadcrumbs">${parts.join('')}</div>`;
+}
+
+async function loadPickerItems(parentId) {
+  return apiFetch(`/api/media?view=active${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ''}`);
+}
+
+export function openMediaPicker({ onSelect, title = 'Add From Media Library', confirmLabel = 'Attach Selected' } = {}) {
+  const modalState = {
     parentId: null,
     items: [],
     breadcrumbs: [],
@@ -517,126 +816,169 @@ export function openMediaPicker({ onSelect, allowedKinds = ['image', 'text', 'ri
   };
 
   function renderPicker(box) {
-    const body = box.querySelector('#media-picker-body');
-    const crumbs = [{ id: null, name: 'Library' }, ...pickerState.breadcrumbs];
-    body.innerHTML = `
-      <div class="media-picker-breadcrumbs">
-        ${crumbs.map((crumb, index) => `<button class="media-breadcrumb${index === crumbs.length - 1 ? ' active' : ''}" data-picker-crumb="${crumb.id || ''}">${escHtml(crumb.name)}</button>`).join('<span class="media-breadcrumb-sep">/</span>')}
-      </div>
-      <div class="media-picker-list">
-        ${pickerState.items.length ? pickerState.items.map((item) => `
-          <div class="media-picker-item">
-            ${item.type === 'folder'
-              ? `<button class="media-picker-open" data-picker-open="${escHtml(item.id)}"><span>${kindIcon(item)}</span><span>${escHtml(item.name)}</span></button>`
-              : `<label class="media-picker-select ${allowedKinds.includes(item.kind) ? '' : 'disabled'}">
-                  <input type="checkbox" ${pickerState.selectedIds.has(item.id) ? 'checked' : ''} ${allowedKinds.includes(item.kind) ? '' : 'disabled'} data-picker-check="${escHtml(item.id)}" />
-                  <span>${kindIcon(item)}</span>
-                  <span>${escHtml(item.name)}</span>
-                </label>`}
-          </div>
-        `).join('') : '<div class="sidebar-empty-state">Nothing here</div>'}
-      </div>
-    `;
+    const list = box.querySelector('#media-picker-list');
+    const crumbWrap = box.querySelector('#media-picker-crumbs');
+    const confirmBtn = box.querySelector('#media-picker-confirm');
+    if (!list || !crumbWrap || !confirmBtn) return;
 
-    body.querySelectorAll('[data-picker-crumb]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        pickerState.parentId = btn.dataset.pickerCrumb || null;
-        await loadPicker(box);
+    crumbWrap.innerHTML = buildPickerBreadcrumbs(modalState.parentId, modalState.breadcrumbs);
+    crumbWrap.querySelector('[data-picker-root]')?.addEventListener('click', () => {
+      modalState.parentId = null;
+      loadAndRender(box).catch((err) => handleMediaError(err, 'Unable to load media'));
+    });
+    crumbWrap.querySelectorAll('[data-picker-crumb]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        modalState.parentId = btn.dataset.pickerCrumb || null;
+        loadAndRender(box).catch((err) => handleMediaError(err, 'Unable to load media'));
       });
     });
-    body.querySelectorAll('[data-picker-open]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        pickerState.parentId = btn.dataset.pickerOpen;
-        await loadPicker(box);
+
+    confirmBtn.disabled = modalState.selectedIds.size === 0;
+    if (!modalState.items.length) {
+      list.innerHTML = `<div class="sidebar-empty-state">Nothing to show here</div>`;
+      return;
+    }
+
+    list.innerHTML = modalState.items.map((item) => {
+      const selectable = item.type === 'file' && isAttachable(item);
+      return `
+        <div class="media-picker-item">
+          <button class="media-picker-open${item.type === 'folder' ? '' : (selectable ? '' : ' disabled')}" data-picker-open="${escHtml(item.id)}">
+            <span class="media-item-icon">${kindIcon(item)}</span>
+            <span class="media-item-copy">
+              <span class="media-item-name">${escHtml(item.name)}</span>
+              <span class="media-item-meta">${item.type === 'folder' ? 'Folder' : `${escHtml(item.kind || 'file')} • ${bytesLabel(item.size)}`}</span>
+            </span>
+          </button>
+          ${selectable ? `
+            <label class="media-picker-select">
+              <input type="checkbox" data-picker-select="${escHtml(item.id)}" ${modalState.selectedIds.has(item.id) ? 'checked' : ''} />
+              <span class="selection-checkmark" aria-hidden="true"></span>
+            </label>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+
+    list.querySelectorAll('[data-picker-open]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const item = modalState.items.find((entry) => entry.id === btn.dataset.pickerOpen);
+        if (!item) return;
+        if (item.type === 'folder') {
+          modalState.parentId = item.id;
+          loadAndRender(box).catch((err) => handleMediaError(err, 'Unable to load folder'));
+        } else if (item.kind === 'image') {
+          getMediaObjectUrl(item.id).then((url) => openImageModal(url)).catch((err) => handleMediaError(err, 'Unable to preview image'));
+        }
       });
     });
-    body.querySelectorAll('[data-picker-check]').forEach((input) => {
+
+    list.querySelectorAll('[data-picker-select]').forEach((input) => {
       input.addEventListener('change', () => {
-        if (input.checked) pickerState.selectedIds.add(input.dataset.pickerCheck);
-        else pickerState.selectedIds.delete(input.dataset.pickerCheck);
+        if (input.checked) modalState.selectedIds.add(input.dataset.pickerSelect);
+        else modalState.selectedIds.delete(input.dataset.pickerSelect);
+        confirmBtn.disabled = modalState.selectedIds.size === 0;
       });
     });
   }
 
-  async function loadPicker(box) {
-    const res = await apiFetch(`/api/media?view=active${pickerState.parentId ? `&parentId=${encodeURIComponent(pickerState.parentId)}` : ''}`);
-    pickerState.items = res.items || [];
-    pickerState.breadcrumbs = res.breadcrumbs || [];
+  async function loadAndRender(box) {
+    const res = await loadPickerItems(modalState.parentId);
+    modalState.items = res.items || [];
+    const visibleIds = new Set(modalState.items.map((item) => item.id));
+    modalState.selectedIds = new Set([...modalState.selectedIds].filter((id) => visibleIds.has(id)));
+    modalState.breadcrumbs = res.breadcrumbs || [];
     renderPicker(box);
   }
 
   openModal(`
     <div class="modal-header">
-      <span class="modal-title">Add From Media Library</span>
+      <span class="modal-title">${escHtml(title)}</span>
       <button class="modal-close" id="media-picker-close">×</button>
     </div>
-    <div class="modal-body" id="media-picker-body"></div>
+    <div class="modal-body">
+      <div id="media-picker-crumbs"></div>
+      <div id="media-picker-list" class="media-picker-list"></div>
+    </div>
     <div class="modal-footer">
       <button class="btn-ghost" id="media-picker-cancel">Cancel</button>
-      <button class="btn-primary" id="media-picker-attach">Attach Selected</button>
+      <button class="btn-primary" id="media-picker-confirm" disabled>${escHtml(confirmLabel)}</button>
     </div>
   `, {
     onOpen(box) {
       box.querySelector('#media-picker-close')?.addEventListener('click', closeModal);
       box.querySelector('#media-picker-cancel')?.addEventListener('click', closeModal);
-      box.querySelector('#media-picker-attach')?.addEventListener('click', async () => {
-        const items = pickerState.items.filter((item) => pickerState.selectedIds.has(item.id));
-        closeModal();
+      box.querySelector('#media-picker-confirm')?.addEventListener('click', async () => {
+        const items = modalState.items.filter((item) => modalState.selectedIds.has(item.id));
+        if (!items.length) return;
         await onSelect?.(items);
+        closeModal();
       });
-      loadPicker(box).catch((err) => {
-        showNotification({ type: 'error', message: err.message || 'Failed to load media', duration: 3000 });
-      });
+      loadAndRender(box).catch((err) => handleMediaError(err, 'Unable to load media'));
     },
   });
 }
 
-function openFolderPicker({ title = 'Choose Folder', confirmLabel = 'Select Folder', startParentId = null, onSelect } = {}) {
-  const pickerState = {
+function openFolderPicker({ title = 'Choose Folder', confirmLabel = 'Select', startParentId = null, onSelect } = {}) {
+  const modalState = {
     parentId: startParentId,
     items: [],
     breadcrumbs: [],
   };
 
-  function renderPicker(box) {
-    const body = box.querySelector('#folder-picker-body');
-    const crumbs = [{ id: null, name: 'Library' }, ...pickerState.breadcrumbs];
-    const folders = pickerState.items.filter((item) => item.type === 'folder');
-    body.innerHTML = `
-      <div class="media-picker-breadcrumbs">
-        ${crumbs.map((crumb, index) => `<button class="media-breadcrumb${index === crumbs.length - 1 ? ' active' : ''}" data-folder-crumb="${crumb.id || ''}">${escHtml(crumb.name)}</button>`).join('<span class="media-breadcrumb-sep">/</span>')}
-      </div>
-      <div style="padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--bg-active);margin-bottom:10px;">
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px;">Destination</div>
-        <div style="font-size:13px;color:var(--text);">${escHtml(crumbs.map((crumb) => crumb.name).join(' / '))}</div>
-      </div>
-      <div class="media-picker-list">
-        ${folders.length ? folders.map((item) => `
-          <div class="media-picker-item">
-            <button class="media-picker-open" data-folder-open="${escHtml(item.id)}"><span>${kindIcon(item)}</span><span>${escHtml(item.name)}</span></button>
-          </div>
-        `).join('') : '<div class="sidebar-empty-state">No subfolders here</div>'}
-      </div>
-    `;
+  function currentFolderLabel() {
+    const currentCrumb = modalState.breadcrumbs.at(-1);
+    return currentCrumb?.name || 'Library';
+  }
 
-    body.querySelectorAll('[data-folder-crumb]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        pickerState.parentId = btn.dataset.folderCrumb || null;
-        await loadPicker(box);
+  function renderPicker(box) {
+    const list = box.querySelector('#folder-picker-list');
+    const crumbs = box.querySelector('#folder-picker-crumbs');
+    const confirm = box.querySelector('#folder-picker-confirm');
+    if (!list || !crumbs || !confirm) return;
+
+    crumbs.innerHTML = buildPickerBreadcrumbs(modalState.parentId, modalState.breadcrumbs);
+    crumbs.querySelector('[data-picker-root]')?.addEventListener('click', () => {
+      modalState.parentId = null;
+      loadAndRender(box).catch((err) => handleMediaError(err, 'Unable to load folders'));
+    });
+    crumbs.querySelectorAll('[data-picker-crumb]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        modalState.parentId = btn.dataset.pickerCrumb || null;
+        loadAndRender(box).catch((err) => handleMediaError(err, 'Unable to load folders'));
       });
     });
-    body.querySelectorAll('[data-folder-open]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        pickerState.parentId = btn.dataset.folderOpen;
-        await loadPicker(box);
+
+    confirm.textContent = modalState.parentId ? `${confirmLabel}: ${currentFolderLabel()}` : `${confirmLabel}: Library`;
+
+    const folders = modalState.items.filter((item) => item.type === 'folder');
+    if (!folders.length) {
+      list.innerHTML = `<div class="sidebar-empty-state">No folders in this location</div>`;
+      return;
+    }
+
+    list.innerHTML = folders.map((item) => `
+      <button class="media-picker-open" data-folder-open="${escHtml(item.id)}">
+        <span class="media-item-icon">${kindIcon(item)}</span>
+        <span class="media-item-copy">
+          <span class="media-item-name">${escHtml(item.name)}</span>
+          <span class="media-item-meta">Folder</span>
+        </span>
+      </button>
+    `).join('');
+
+    list.querySelectorAll('[data-folder-open]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        modalState.parentId = btn.dataset.folderOpen || null;
+        loadAndRender(box).catch((err) => handleMediaError(err, 'Unable to load folder'));
       });
     });
   }
 
-  async function loadPicker(box) {
-    const res = await apiFetch(`/api/media?view=active${pickerState.parentId ? `&parentId=${encodeURIComponent(pickerState.parentId)}` : ''}`);
-    pickerState.items = res.items || [];
-    pickerState.breadcrumbs = res.breadcrumbs || [];
+  async function loadAndRender(box) {
+    const res = await loadPickerItems(modalState.parentId);
+    modalState.items = res.items || [];
+    modalState.breadcrumbs = res.breadcrumbs || [];
     renderPicker(box);
   }
 
@@ -645,7 +987,10 @@ function openFolderPicker({ title = 'Choose Folder', confirmLabel = 'Select Fold
       <span class="modal-title">${escHtml(title)}</span>
       <button class="modal-close" id="folder-picker-close">×</button>
     </div>
-    <div class="modal-body" id="folder-picker-body"></div>
+    <div class="modal-body">
+      <div id="folder-picker-crumbs"></div>
+      <div id="folder-picker-list" class="media-picker-list"></div>
+    </div>
     <div class="modal-footer">
       <button class="btn-ghost" id="folder-picker-cancel">Cancel</button>
       <button class="btn-primary" id="folder-picker-confirm">${escHtml(confirmLabel)}</button>
@@ -655,77 +1000,65 @@ function openFolderPicker({ title = 'Choose Folder', confirmLabel = 'Select Fold
       box.querySelector('#folder-picker-close')?.addEventListener('click', closeModal);
       box.querySelector('#folder-picker-cancel')?.addEventListener('click', closeModal);
       box.querySelector('#folder-picker-confirm')?.addEventListener('click', async () => {
+        await onSelect?.(modalState.parentId);
         closeModal();
-        await onSelect?.(pickerState.parentId || null);
       });
-      loadPicker(box).catch((err) => {
-        showNotification({ type: 'error', message: err.message || 'Failed to load folders', duration: 3000 });
-      });
+      loadAndRender(box).catch((err) => handleMediaError(err, 'Unable to load folders'));
     },
   });
 }
 
+export function openMediaTrashView() {
+  const overlay = document.getElementById('sidebar-trash-overlay');
+  if (!overlay) return;
+  overlay.dataset.context = 'media';
+  document.getElementById('sidebar-trash-title').textContent = 'Media Trash';
+  document.getElementById('sidebar-trash-subtitle').textContent = 'Recently deleted files and folders';
+  renderMediaTrashOverlay();
+  refreshMediaTrashView();
+}
+
 export function initMediaSidebar() {
-  document.querySelectorAll('[data-media-view]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      document.querySelectorAll('[data-media-view]').forEach((tab) => tab.classList.remove('active'));
-      btn.classList.add('active');
-      state.view = btn.dataset.mediaView;
-      state.parentId = null;
-      state.selectedIds.clear();
-      closeEditor();
-      await refreshMediaList();
-    });
-  });
-
-  document.getElementById('media-upload-btn')?.addEventListener('click', () => {
-    document.getElementById('media-upload-input')?.click();
-  });
-  document.getElementById('media-new-folder-btn')?.addEventListener('click', () => {
-    promptForFolder().catch((err) => showNotification({ type: 'error', message: err.message || 'Failed to create folder', duration: 3000 }));
-  });
-  document.getElementById('media-new-text-btn')?.addEventListener('click', () => {
-    promptForDocument(false).catch((err) => showNotification({ type: 'error', message: err.message || 'Failed to create document', duration: 3000 }));
-  });
-  document.getElementById('media-new-richtext-btn')?.addEventListener('click', () => {
-    promptForDocument(true).catch((err) => showNotification({ type: 'error', message: err.message || 'Failed to create document', duration: 3000 }));
-  });
-
-  document.getElementById('media-upload-input')?.addEventListener('change', async function handleUpload() {
+  document.getElementById('media-create-btn')?.addEventListener('click', openCreateMenu);
+  document.getElementById('media-editor-close')?.addEventListener('click', closeEditor);
+  document.getElementById('media-editor-cancel')?.addEventListener('click', closeEditor);
+  document.getElementById('media-editor-save')?.addEventListener('click', async () => {
+    if (!state.editor?.item?.id || !state.editor.getValue) return;
     try {
-      for (const file of this.files) {
-        await uploadFileToLibrary(file, { parentId: state.parentId });
-      }
+      setEditorStatus('Saving…');
+      await saveMediaText(state.editor.item.id, { content: state.editor.getValue() });
+      setEditorStatus('Saved', 'success');
     } catch (err) {
-      showNotification({ type: 'error', message: err.message || 'Upload failed', duration: 3000 });
+      setEditorStatus(err?.message || 'Unable to save', 'error');
+      handleMediaError(err, 'Unable to save document');
+    }
+  });
+
+  document.getElementById('media-upload-input')?.addEventListener('change', async function handleUploadInput() {
+    const files = Array.from(this.files || []);
+    if (!files.length) return;
+    try {
+      const sessionId = await getCurrentSessionId();
+      for (const file of files) {
+        await uploadFileToLibrary(file, {
+          parentId: state.parentId,
+          sessionId,
+          kind: file.type?.startsWith('image/') ? 'image' : null,
+        });
+      }
+      showNotification({
+        type: 'success',
+        message: files.length === 1 ? 'File uploaded' : `${files.length} files uploaded`,
+        duration: 2400,
+      });
+    } catch (err) {
+      handleMediaError(err, 'Unable to upload file');
     } finally {
       this.value = '';
     }
   });
 
-  document.getElementById('media-editor-close')?.addEventListener('click', closeEditor);
-  document.getElementById('media-editor-cancel')?.addEventListener('click', closeEditor);
-  document.getElementById('media-editor-save')?.addEventListener('click', async () => {
-    if (!state.editor) return;
-    try {
-      const value = state.editor.getValue();
-      const item = await saveMediaText(state.editor.item.id, {
-        content: value,
-        richText: state.editor.mode === 'rich',
-        mimeType: state.editor.mode === 'rich' ? 'text/html' : 'text/plain',
-        name: state.editor.item.name,
-      });
-      state.editor.item = item;
-      setEditorStatus('Saved', 'success');
-      showNotification({ type: 'success', message: `${item.name} saved`, duration: 1800 });
-    } catch (err) {
-      setEditorStatus(err.message || 'Save failed', 'error');
-    }
-  });
-
   on('media:changed', () => {
-    if (isMediaPaneVisible()) refreshMediaList();
+    refreshAllMediaViews().catch(() => {});
   });
-
-  refreshMediaList();
 }
