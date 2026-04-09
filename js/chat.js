@@ -1209,33 +1209,33 @@ function makeBtn(label, cls) {
 
 // ── Streaming ─────────────────────────────────────────────────────────────
 
-function onChatStart(msg) {
-  const sessionId = msg.sessionId;
-  isStreaming = true;
-  streamingSessionId = sessionId;
-  streamingText = '';
-  pendingAssets = [];
-  streamingDraftEdits = [];
+// function onChatStart(msg) {
+//   const sessionId = msg.sessionId;
+//   isStreaming = true;
+//   streamingSessionId = sessionId;
+//   streamingText = '';
+//   pendingAssets = [];
+//   streamingDraftEdits = [];
 
-  if (sessionId !== activeSessionId) {
-    // Streaming for a background session — just track state, no UI
-    return;
-  }
+//   if (sessionId !== activeSessionId) {
+//     // Streaming for a background session — just track state, no UI
+//     return;
+//   }
 
-  showChat();
-  const box = document.getElementById('chat-messages'); if (!box) return;
-  streamingBubble = document.createElement('div');
-  streamingBubble.className = 'msg-assistant msg-generating';
+//   showChat();
+//   const box = document.getElementById('chat-messages'); if (!box) return;
+//   streamingBubble = document.createElement('div');
+//   streamingBubble.className = 'msg-assistant msg-generating';
 
-  const thinking = document.createElement('div'); thinking.className = 'msg-thinking';
-  for (let i = 0; i < 3; i++) {
-    const d = document.createElement('div'); d.className = 'thinking-dot'; thinking.appendChild(d);
-  }
-  streamingBubble.appendChild(thinking);
-  box.appendChild(streamingBubble);
-  if (autoScroll) box.scrollTop = box.scrollHeight;
-  updateSendBtn(true);
-}
+//   const thinking = document.createElement('div'); thinking.className = 'msg-thinking';
+//   for (let i = 0; i < 3; i++) {
+//     const d = document.createElement('div'); d.className = 'thinking-dot'; thinking.appendChild(d);
+//   }
+//   streamingBubble.appendChild(thinking);
+//   box.appendChild(streamingBubble);
+//   if (autoScroll) box.scrollTop = box.scrollHeight;
+//   updateSendBtn(true);
+// }
 
 function onToken(token) {
   if (!streamingBubble) return;
