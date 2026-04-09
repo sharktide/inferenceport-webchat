@@ -4,7 +4,17 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>InferencePort Admin</title>
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+<link rel="preconnect" href="https://challenges.cloudflare.com" />
+<script>
+  window.__adminTurnstileReady = false;
+  window.adminTurnstileApiLoaded = function () {
+    window.__adminTurnstileReady = true;
+    if (typeof window.__adminTurnstileBoot === 'function') {
+      window.__adminTurnstileBoot();
+    }
+  };
+</script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=adminTurnstileApiLoaded&render=explicit" async defer></script>
 <style>
   :root {
     color-scheme: dark;
@@ -295,7 +305,7 @@
       <div class="hero">
         <div class="eyebrow">Admin</div>
         <h1>InferencePort deployment control</h1>
-        <p>Use the latest UI, pin a specific commit, or inspect what this space is currently serving. Production asks for confirmation before changing versions. Development applies immediately.</p>
+        <p>By continuing to this page, you agree that ANY AND ALL ACTIVITIES MAY BE RECORDED TO ANY EXTENT.</p>
       </div>
 
       <div class="content">
@@ -374,6 +384,20 @@
   let humanVerified = false;
   let turnstileWidgetId = null;
   let turnstileSiteKey = '';
+  let turnstileScriptReady = false;
+  let turnstileLoadTimer = null;
+
+  window.__adminTurnstileBoot = () => {
+    turnstileScriptReady = true;
+    if (turnstileLoadTimer) {
+      window.clearTimeout(turnstileLoadTimer);
+      turnstileLoadTimer = null;
+    }
+    renderTurnstileWidget();
+  };
+  if (window.__adminTurnstileReady || window.turnstile) {
+    window.__adminTurnstileBoot();
+  }
 
   function setStatus(message) {
     if (loginStatus) loginStatus.textContent = message;
@@ -393,15 +417,22 @@
     });
   }
 
+  function resetTurnstileWidget() {
+    if (!window.turnstile || turnstileWidgetId === null) return;
+    try {
+      window.turnstile.reset(turnstileWidgetId);
+    } catch (err) {
+      console.warn('Unable to reset Turnstile widget', err);
+    }
+  }
+
   function handleTurnstileRequired(err) {
     if (!String(err?.message || '').includes('turnstile:required')) return false;
     humanVerified = false;
     setControlsEnabled(false);
     humanGate?.classList.remove('hidden');
     setHumanStatus('Verification expired. Please complete Turnstile again.', true);
-    if (window.turnstile && turnstileWidgetId !== null) {
-      window.turnstile.reset(turnstileWidgetId);
-    }
+    resetTurnstileWidget();
     return true;
   }
 
@@ -445,22 +476,34 @@
       humanVerified = false;
       setControlsEnabled(false);
       setHumanStatus(err.message || 'Unable to verify human check', true);
-      if (window.turnstile && turnstileWidgetId !== null) {
-        window.turnstile.reset(turnstileWidgetId);
-      }
+      resetTurnstileWidget();
     }
   }
 
   function renderTurnstileWidget() {
-    if (!turnstileHost || !turnstileSiteKey || !window.turnstile || turnstileWidgetId !== null) return;
+    if (!turnstileHost || !turnstileSiteKey || !turnstileScriptReady || !window.turnstile || turnstileWidgetId !== null) return;
     turnstileWidgetId = window.turnstile.render(turnstileHost, {
       sitekey: turnstileSiteKey,
       callback: verifyHumanToken,
-      'error-callback': () => setHumanStatus('Verification failed. Please try again.', true),
+      appearance: 'always',
+      theme: 'dark',
+      retry: 'auto',
+      'error-callback': () => {
+        humanVerified = false;
+        setControlsEnabled(false);
+        setHumanStatus('Verification failed. Please try again.', true);
+      },
       'expired-callback': () => {
         humanVerified = false;
         setControlsEnabled(false);
         setHumanStatus('Verification expired. Please complete it again.', true);
+        resetTurnstileWidget();
+      },
+      'timeout-callback': () => {
+        humanVerified = false;
+        setControlsEnabled(false);
+        setHumanStatus('Verification timed out. Please try again.', true);
+        resetTurnstileWidget();
       },
     });
     setHumanStatus('Complete the check above to unlock admin actions.');
@@ -468,6 +511,12 @@
 
   async function initHumanVerification() {
     setControlsEnabled(false);
+    if (turnstileLoadTimer) window.clearTimeout(turnstileLoadTimer);
+    turnstileLoadTimer = window.setTimeout(() => {
+      if (!turnstileScriptReady && !humanVerified) {
+        setHumanStatus('Cloudflare Turnstile did not load. Check blockers or refresh the page.', true);
+      }
+    }, 8000);
     try {
       const data = await requestJson('/admin/config');
       turnstileSiteKey = data.siteKey || '';
@@ -475,19 +524,27 @@
         humanVerified = true;
         humanGate?.classList.add('hidden');
         setControlsEnabled(true);
+        if (turnstileLoadTimer) {
+          window.clearTimeout(turnstileLoadTimer);
+          turnstileLoadTimer = null;
+        }
         setStatus('Human verification already active.');
         return;
       }
       if (!turnstileSiteKey) {
+        if (turnstileLoadTimer) {
+          window.clearTimeout(turnstileLoadTimer);
+          turnstileLoadTimer = null;
+        }
         setHumanStatus('Turnstile is not configured on this server.', true);
         return;
       }
-      const waitForTurnstile = window.setInterval(() => {
-        if (!window.turnstile) return;
-        window.clearInterval(waitForTurnstile);
-        renderTurnstileWidget();
-      }, 150);
+      renderTurnstileWidget();
     } catch (err) {
+      if (turnstileLoadTimer) {
+        window.clearTimeout(turnstileLoadTimer);
+        turnstileLoadTimer = null;
+      }
       setHumanStatus(err.message || 'Unable to load verification', true);
     }
   }
