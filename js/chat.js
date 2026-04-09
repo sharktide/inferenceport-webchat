@@ -706,7 +706,7 @@ function buildEditContent(text, attachments) {
   return fullText;
 }
 
-function openEditAttachMenu(e, triggerEl, editAttachments, filePreviewRow) {
+function openEditAttachMenuLegacy(e, triggerEl, editAttachments, filePreviewRow) {
   e.preventDefault();
   const fileInput  = document.getElementById('file-input');
   const imageInput = document.getElementById('image-input');
