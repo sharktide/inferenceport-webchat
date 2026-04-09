@@ -1561,13 +1561,13 @@ function onChatStart(msg) {
 //   }
 // }
 
-function onDraftEdited(msg) {
-  if (!streamingBubble) return;
-  streamingText = msg.text || streamingText;
-  if (msg.edit) streamingDraftEdits.push(msg.edit);
-  streamingStatusLabel = 'Revising responseâ€¦';
-  renderStreamingBubble();
-}
+// function onDraftEdited(msg) {
+//   if (!streamingBubble) return;
+//   streamingText = msg.text || streamingText;
+//   if (msg.edit) streamingDraftEdits.push(msg.edit);
+//   streamingStatusLabel = 'Revising responseâ€¦';
+//   renderStreamingBubble();
+// }
 
 function onChatDone(msg) {
   const sessionId = msg.sessionId;
