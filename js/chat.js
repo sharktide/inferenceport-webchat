@@ -1586,21 +1586,21 @@ function onChatStart(msg) {
 //   }
 // }
 
-function onChatAborted(msg) {
-  const sessionId = msg.sessionId;
-  if (sessionId === streamingSessionId) {
-    isStreaming = false;
-    streamingSessionId = null;
-  }
+// function onChatAborted(msg) {
+//   const sessionId = msg.sessionId;
+//   if (sessionId === streamingSessionId) {
+//     isStreaming = false;
+//     streamingSessionId = null;
+//   }
 
-  if (sessionId === activeSessionId) {
-    updateSendBtn(false);
-    const restoreHistory = msg.history
-      || (streamingStartMeta?.streamKind === 'assistantAction' ? streamingSourceHistory : currentHistory);
-    clearStreamingState();
-    if (restoreHistory) renderHistory(restoreHistory);
-  }
-}
+//   if (sessionId === activeSessionId) {
+//     updateSendBtn(false);
+//     const restoreHistory = msg.history
+//       || (streamingStartMeta?.streamKind === 'assistantAction' ? streamingSourceHistory : currentHistory);
+//     clearStreamingState();
+//     if (restoreHistory) renderHistory(restoreHistory);
+//   }
+// }
 
 function onChatError(msg) {
   const sessionId = msg?.sessionId || activeSessionId;
