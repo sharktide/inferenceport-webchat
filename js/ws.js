@@ -1,5 +1,17 @@
 // ws.js - WebSocket connection manager
-const WS_URL = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`;
+// If running on inference.js.org, rewrite to hf.space
+const WS_URL = (() => {
+  const isHttps = location.protocol === 'https:';
+  const protocol = isHttps ? 'wss:' : 'ws:';
+
+  if (location.hostname === 'inference.js.org') {
+    return `${protocol}//incognitolm-chat.hf.space/ws`;
+  }
+
+  // default behavior (unchanged)
+  return `${protocol}//${location.host}/ws`;
+})();
+
 const RECONNECT_DELAY_MS = 2000;
 const MAX_RECONNECT_DELAY = 30000;
 
