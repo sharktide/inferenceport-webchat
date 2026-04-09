@@ -707,7 +707,7 @@ function renderMediaList() {
     list.innerHTML = `
       <div class="sidebar-empty-state rich-empty-state">
         <strong>No files here yet</strong>
-        <span>Click <b>+</b> to upload files, write notes, or create folders.</span>
+        <span>Click <b>+</b> to upload or create files.</span>
       </div>
     `;
     return;
