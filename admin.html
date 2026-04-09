@@ -21,6 +21,19 @@
   }
 
   * { box-sizing: border-box; }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.18) transparent;
+  }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.18);
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); background-clip: padding-box; }
   body {
     margin: 0;
     min-height: 100vh;
@@ -250,6 +263,7 @@
             </div>
             <button id="loginBtn" class="btn-primary">Log In</button>
           </div>
+          <div id="loginStatus" class="log" style="margin-top:18px;min-height:56px;">Enter the admin token to continue.</div>
         </div>
 
         <div id="panelView" class="hidden">
@@ -258,9 +272,12 @@
             <div class="card"><div class="card-label">Serving</div><div id="modeValue" class="card-value">-</div></div>
             <div class="card"><div class="card-label">Current SHA</div><div id="shaValue" class="card-value">-</div></div>
             <div class="card"><div class="card-label">UI Source</div><div id="sourceValue" class="card-value">-</div></div>
+            <div class="card"><div class="card-label">Repo</div><div id="repoValue" class="card-value">-</div></div>
+            <div class="card"><div class="card-label">Local UI Path</div><div id="localValue" class="card-value">-</div></div>
           </div>
 
           <div class="action-row">
+            <button id="refreshStatusBtn">Refresh Status</button>
             <button id="refreshLatestBtn" class="btn-primary">Use Latest Commit</button>
             <button id="chooseCommitBtn">Choose Recent Commit</button>
             <button id="manualShaBtn">Enter Commit SHA</button>
@@ -283,6 +300,7 @@
   const loginView = document.getElementById('loginView');
   const panelView = document.getElementById('panelView');
   const tokenInput = document.getElementById('tokenInput');
+  const loginStatus = document.getElementById('loginStatus');
   const statusLog = document.getElementById('statusLog');
   const modalOverlay = document.getElementById('modalOverlay');
   const modalBox = document.getElementById('modalBox');
@@ -292,6 +310,7 @@
   let currentSha = '';
 
   function setStatus(message) {
+    if (loginStatus) loginStatus.textContent = message;
     statusLog.textContent = message;
   }
 
@@ -319,6 +338,8 @@
     document.getElementById('modeValue').textContent = data.servingMode || '-';
     document.getElementById('shaValue').textContent = currentSha || 'Unknown';
     document.getElementById('sourceValue').textContent = data.uiSource || '-';
+    document.getElementById('repoValue').textContent = data.repo || repo;
+    document.getElementById('localValue').textContent = data.localUiDir || 'CDN only';
   }
 
   async function applyRefresh(sha = '') {
@@ -424,6 +445,7 @@
   document.getElementById('refreshLatestBtn').onclick = () => {
     confirmThenRun('Use latest commit', 'Update this space to the most recent available UI commit?', () => applyRefresh());
   };
+  document.getElementById('refreshStatusBtn').onclick = () => loadStatus().then(() => setStatus('Status refreshed.')).catch((err) => setStatus(err.message || 'Unable to refresh status'));
   document.getElementById('chooseCommitBtn').onclick = () => openCommitPicker().catch((err) => setStatus(err.message || 'Unable to load commits'));
   document.getElementById('manualShaBtn').onclick = openManualShaModal;
   document.getElementById('copyShaBtn').onclick = async () => {

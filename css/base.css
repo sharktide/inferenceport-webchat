@@ -26,13 +26,29 @@ input { font: inherit; }
 .hidden { display: none !important; }
 
 /* Scrollbar — only show inside #chat-messages */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--bg-active); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
 
 /* Hide scrollbars globally except inside the chat messages container */
-html, body, #app, #main, .sidebar, .sidebar-sessions,
+html, body, #app, #main, .sidebar,
 #welcome-view, .welcome-view, #chat-view,
 .bottom-input-bar, .bottom-input-wrap,
 .bottom-textarea-wrap, .settings-pane {
@@ -55,15 +71,13 @@ body::-webkit-scrollbar,
 /* Only show scrollbar inside the actual chat messages container */
 #chat-messages {
   scrollbar-width: thin;
-  scrollbar-color: var(--bg-active) transparent;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
-#chat-messages::-webkit-scrollbar { width: 5px; height: 5px; display: block; }
+#chat-messages::-webkit-scrollbar { width: 10px; height: 10px; display: block; }
 
 /* Also keep scrollbar in modals and sidebar session list */
 .modal-box { scrollbar-width: thin; }
-.modal-box::-webkit-scrollbar { display: block; width: 5px; }
-.sidebar-sessions { scrollbar-width: thin; }
-.sidebar-sessions::-webkit-scrollbar { display: block; width: 4px; }
+.modal-box::-webkit-scrollbar { display: block; width: 10px; }
 
 /* Focus visible */
 :focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
@@ -211,22 +225,21 @@ textarea,
 .media-rich-editor,
 .media-text-editor,
 .modal-box,
-.sidebar-sessions,
 #chat-messages,
 #media-list,
-#sidebar-trash-list {
+#sidebar-trash-list,
+.session-list {
   scrollbar-width: thin;
-  scrollbar-color: var(--border-bright) transparent;
 }
 
 textarea::-webkit-scrollbar,
 .media-rich-editor::-webkit-scrollbar,
 .media-text-editor::-webkit-scrollbar,
 .modal-box::-webkit-scrollbar,
-.sidebar-sessions::-webkit-scrollbar,
 #chat-messages::-webkit-scrollbar,
 #media-list::-webkit-scrollbar,
-#sidebar-trash-list::-webkit-scrollbar {
+#sidebar-trash-list::-webkit-scrollbar,
+.session-list::-webkit-scrollbar {
   width: 10px;
   height: 10px;
   display: block;
@@ -236,23 +249,23 @@ textarea::-webkit-scrollbar-track,
 .media-rich-editor::-webkit-scrollbar-track,
 .media-text-editor::-webkit-scrollbar-track,
 .modal-box::-webkit-scrollbar-track,
-.sidebar-sessions::-webkit-scrollbar-track,
 #chat-messages::-webkit-scrollbar-track,
 #media-list::-webkit-scrollbar-track,
-#sidebar-trash-list::-webkit-scrollbar-track {
-  background: transparent;
+#sidebar-trash-list::-webkit-scrollbar-track,
+.session-list::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
 }
 
 textarea::-webkit-scrollbar-thumb,
 .media-rich-editor::-webkit-scrollbar-thumb,
 .media-text-editor::-webkit-scrollbar-thumb,
 .modal-box::-webkit-scrollbar-thumb,
-.sidebar-sessions::-webkit-scrollbar-thumb,
 #chat-messages::-webkit-scrollbar-thumb,
 #media-list::-webkit-scrollbar-thumb,
-#sidebar-trash-list::-webkit-scrollbar-thumb {
+#sidebar-trash-list::-webkit-scrollbar-thumb,
+.session-list::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: var(--border-bright);
+  background: var(--scrollbar-thumb);
   background-clip: padding-box;
 }

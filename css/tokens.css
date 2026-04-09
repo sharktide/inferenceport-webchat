@@ -19,6 +19,9 @@
   --text: #e8eaf0;
   --text-dim: rgba(232, 234, 240, 0.55);
   --text-muted: rgba(232, 234, 240, 0.35);
+  --scrollbar-track: rgba(255,255,255,0.03);
+  --scrollbar-thumb: rgba(255,255,255,0.16);
+  --scrollbar-thumb-hover: rgba(255,255,255,0.28);
 
   /* Sidebar */
   --sidebar-width: 260px;
@@ -77,6 +80,9 @@
   --text: #1a1b20;
   --text-dim: rgba(26, 27, 32, 0.6);
   --text-muted: rgba(26, 27, 32, 0.38);
+  --scrollbar-track: rgba(0,0,0,0.05);
+  --scrollbar-thumb: rgba(0,0,0,0.16);
+  --scrollbar-thumb-hover: rgba(0,0,0,0.28);
   --sidebar-bg: #e8e9ed;
   --sidebar-border: rgba(0,0,0,0.07);
   --input-bg: #ffffff;

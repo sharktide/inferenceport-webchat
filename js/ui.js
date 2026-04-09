@@ -55,13 +55,26 @@ export function showContextMenu(x, y, items) {
     el.className = 'context-item' + (item.danger ? ' danger' : '') + (item.warning ? ' warning' : '');
     if (item.icon) {
       const ic = document.createElement('span');
+      ic.className = 'context-item-icon';
       ic.textContent = item.icon;
-      ic.style.fontSize = '14px';
       el.appendChild(ic);
     }
+    const copy = document.createElement('div');
+    copy.className = 'context-item-copy';
+
     const label = document.createElement('span');
+    label.className = 'context-item-label';
     label.textContent = item.label;
-    el.appendChild(label);
+    copy.appendChild(label);
+
+    if (item.description) {
+      const description = document.createElement('span');
+      description.className = 'context-item-description';
+      description.textContent = item.description;
+      copy.appendChild(description);
+    }
+
+    el.appendChild(copy);
     el.addEventListener('click', (e) => { e.stopPropagation(); closeContextMenu(); item.onClick?.(); });
     menu.appendChild(el);
   }

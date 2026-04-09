@@ -11,7 +11,7 @@ import { openSettings } from './settings.js';
 import { showNotification, autoResize, escHtml } from './ui.js';
 import {
   initMediaSidebar, openMediaPicker, uploadFileToLibrary,
-  uploadTextToLibrary, mediaItemToAttachment, openMediaTrashView, refreshMediaList,
+  uploadTextToLibrary, mediaItemToAttachment, openMediaTrashView, refreshMediaList, closeMediaEditor,
 } from './media.js';
 
 // ── Apply theme immediately from localStorage (no flash) ──────────────────
@@ -105,6 +105,38 @@ sidebarTrashBackBtn?.addEventListener('click', closeTrashOverlay);
 
 setSidebarMode('chats');
 
+function clearComposerInputs() {
+  if (centerInput) {
+    centerInput.value = '';
+    autoResize(centerInput, 6);
+  }
+  if (bottomInput) {
+    bottomInput.value = '';
+    autoResize(bottomInput, 6);
+  }
+  clearFilePreviewRow();
+}
+
+function clearChatPanel() {
+  const box = document.getElementById('chat-messages');
+  if (box) {
+    box.innerHTML = '';
+    box.scrollTop = 0;
+  }
+}
+
+export function resetToNewChatView({ focusInput = false } = {}) {
+  closeTrashOverlay();
+  setSidebarMode('chats');
+  closeMediaEditor();
+  showWelcomeScreen();
+  clearComposerInputs();
+  clearChatPanel();
+  if (focusInput) {
+    requestAnimationFrame(() => centerInput?.focus());
+  }
+}
+
 // ── Mobile top bar + sidebar logic ───────────────────────────────────────
 
 (function setupMobile() {
@@ -131,14 +163,8 @@ setSidebarMode('chats');
     sidebar?.classList.contains('expanded') ? closeSidebar() : openSidebar();
   });
   document.getElementById('mobile-newchat-btn')?.addEventListener('click', () => {
-    closeTrashOverlay();
-    setSidebarMode('chats');
-    showWelcomeScreen();
+    resetToNewChatView({ focusInput: false });
     closeSidebar();
-    const ci = document.getElementById('center-input');
-    if (ci) { ci.value = ''; autoResize(ci, 6); }
-    const box = document.getElementById('chat-messages');
-    if (box) box.innerHTML = '';
   });
 
   // Auto-close drawer when a session is switched on mobile
@@ -184,13 +210,7 @@ setSidebarMode('chats');
 // ── New chat — just show the welcome screen ───────────────────────────────
 
 document.getElementById('new-chat-btn')?.addEventListener('click', () => {
-  closeTrashOverlay();
-  setSidebarMode('chats');
-  showWelcomeScreen();
-  const ci = document.getElementById('center-input');
-  if (ci) { ci.value = ''; autoResize(ci, 6); }
-  const box = document.getElementById('chat-messages');
-  if (box) box.innerHTML = '';
+  resetToNewChatView({ focusInput: window.innerWidth > 768 });
 });
 
 // ── Session switching ─────────────────────────────────────────────────────

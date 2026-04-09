@@ -2,12 +2,12 @@
 .center-input-container {
   display: flex;
   flex-direction: column;
-  background: var(--bg-raised);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
   border: 1px solid var(--border-bright);
   border-radius: var(--radius-xl);
-  padding: 12px 14px 10px;
-  gap: 10px;
-  box-shadow: var(--shadow-md);
+  padding: 12px 14px 11px;
+  gap: 8px;
+  box-shadow: 0 18px 36px rgba(0,0,0,0.18);
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 .center-input-container:focus-within {
@@ -22,18 +22,18 @@
   outline: none;
   color: var(--text);
   font-size: 16px;
-  line-height: 1.55;
-  min-height: 26px;
-  max-height: calc(1.55em * 6 + 24px);
+  line-height: 1.45;
+  min-height: 24px;
+  max-height: calc(1.45em * 6 + 22px);
   overflow-y: auto;
-  padding: 0 4px;
+  padding: 2px 2px 1px;
 }
 .center-textarea::placeholder { color: var(--text-muted); }
 
 .center-input-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 
 .tool-btn {
@@ -60,7 +60,7 @@
 /* Attach btn beside center input */
 .attach-btn-wrap {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
 }
 .attach-btn {
   display: flex; align-items: center; justify-content: center;
@@ -86,14 +86,14 @@
 .bottom-input-wrap {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: 10px;
   max-width: 760px;
   margin: 0 auto;
-  background: var(--bg-raised);
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
   border: 1px solid var(--border-bright);
   border-radius: var(--radius-xl);
-  padding: 8px 10px;
-  box-shadow: var(--shadow-md);
+  padding: 10px 10px 10px 12px;
+  box-shadow: 0 18px 36px rgba(0,0,0,0.16);
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 .bottom-input-wrap:focus-within {
@@ -107,18 +107,26 @@
   width: 34px; height: 34px; border-radius: 50%;
   color: var(--text-muted);
   border: 1px solid var(--border-bright);
-  margin-bottom: 4px;
   transition: color var(--transition), background var(--transition);
 }
 .attach-btn-bottom:hover { color: var(--text); background: var(--bg-hover); }
 
 .bottom-textarea-wrap {
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column; gap: 6px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 7px 10px 6px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
 }
 
 .tool-row {
-  display: flex; gap: 4px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 .tool-btn-sm {
@@ -142,11 +150,11 @@
   outline: none;
   color: var(--text);
   font-size: 15px;
-  line-height: 1.55;
-  min-height: calc(1.55em + 2px);
-  max-height: calc(1.55em * 6 + 2px);
+  line-height: 1.45;
+  min-height: calc(1.45em + 2px);
+  max-height: calc(1.45em * 6 + 6px);
   overflow-y: auto;
-  padding: 0;
+  padding: 1px 2px 2px;
 }
 .bottom-textarea::placeholder { color: var(--text-muted); }
 
@@ -155,7 +163,6 @@
   display: flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 50%;
   background: var(--yellow); color: #111;
-  margin-bottom: 2px;
   transition: opacity var(--transition), transform var(--transition), background var(--transition);
 }
 .send-btn-bottom:hover { opacity: 0.88; transform: scale(1.05); }
@@ -172,8 +179,8 @@
 
 .center-input-row {
   display: flex;
-  align-items: flex-end;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
 }
 
 .attach-preview-item {
@@ -414,7 +421,7 @@
 
 /* Input polish */
 .welcome-view {
-  gap: 18px;
+  gap: 14px;
 }
 
 .welcome-input-wrap {
@@ -426,20 +433,20 @@
 
 .center-input-container {
   width: 100%;
-  padding: 14px 16px 12px;
+  padding: 13px 16px 12px;
   gap: 8px;
-  border-radius: 28px;
+  border-radius: 30px;
 }
 
 .center-input-row {
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
 }
 
 .center-textarea {
   display: block;
-  min-height: 30px;
-  padding: 4px 2px;
+  min-height: 26px;
+  padding: 1px 0 2px;
   line-height: 1.45;
 }
 
@@ -450,6 +457,7 @@
 
 .center-input-actions {
   margin-left: auto;
+  align-self: center;
 }
 
 .bottom-input-bar {
@@ -459,8 +467,8 @@
 
 .bottom-input-wrap {
   gap: 10px;
-  padding: 10px 12px;
-  border-radius: 26px;
+  padding: 10px 11px 10px 12px;
+  border-radius: 28px;
 }
 
 .attach-btn-bottom,
@@ -469,18 +477,14 @@
 }
 
 .bottom-textarea-wrap {
-  gap: 8px;
-}
-
-.tool-row {
-  flex-wrap: wrap;
+  gap: 7px;
 }
 
 .bottom-textarea {
-  min-height: calc(1.45em + 4px);
+  min-height: calc(1.45em + 2px);
   max-height: calc(1.45em * 6 + 4px);
   line-height: 1.45;
-  padding: 2px 0 4px;
+  padding: 1px 0 3px;
 }
 
 @media (max-width: 768px) {

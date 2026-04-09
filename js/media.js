@@ -54,6 +54,16 @@ function bytesLabel(size = 0) {
   return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+function kindLabel(item) {
+  if (item?.type === 'folder') return 'Folder';
+  if (item?.kind === 'rich_text') return 'Rich text';
+  if (item?.kind === 'text') return 'Plain text';
+  if (item?.kind === 'image') return 'Image';
+  if (item?.kind === 'video') return 'Video';
+  if (item?.kind === 'audio') return 'Audio';
+  return 'File';
+}
+
 function kindIcon(item) {
   if (item.type === 'folder') return '&#128193;';
   if (item.kind === 'image') return '&#128444;';
@@ -142,18 +152,22 @@ function renderUsagePanel() {
     percentUsed: 0,
   };
   const tone = usageTone(usage);
+  const percent = Math.max(0, Math.min(100, usage.percentUsed || 0));
   panel.className = `media-usage-panel ${tone}`;
   panel.innerHTML = `
     <div class="media-usage-copy">
-      <div class="media-usage-label">Cloud Storage</div>
-      <div class="media-usage-values">${bytesLabel(usage.totalBytes)} of ${bytesLabel(usage.quotaBytes)} used</div>
+      <div>
+        <div class="media-usage-label">Cloud Storage</div>
+        <div class="media-usage-values">${bytesLabel(usage.totalBytes)} of ${bytesLabel(usage.quotaBytes)} used</div>
+      </div>
+      <div class="media-usage-percent">${percent.toFixed(percent >= 10 ? 0 : 1)}%</div>
     </div>
     <div class="media-usage-track">
-      <div class="media-usage-fill" style="width:${Math.min(100, usage.percentUsed || 0)}%"></div>
+      <div class="media-usage-fill" style="width:${percent}%"></div>
     </div>
     <div class="media-usage-meta">
       <span>${bytesLabel(usage.remainingBytes)} free</span>
-      <span>${usage.trashBytes ? `${bytesLabel(usage.trashBytes)} in trash` : 'Trash empties after 30 days'}</span>
+      <span>${usage.trashBytes ? `${bytesLabel(usage.trashBytes)} in trash` : 'Trash clears after 30 days'}</span>
     </div>
   `;
 }
@@ -553,7 +567,7 @@ function buildMediaRows(items, { trash = false } = {}) {
         <span class="media-item-icon">${kindIcon(item)}</span>
         <span class="media-item-copy">
           <span class="media-item-name">${escHtml(item.name)}</span>
-          <span class="media-item-meta">${item.type === 'folder' ? 'Folder' : `${escHtml(item.kind || 'file')} • ${bytesLabel(item.size)}`}</span>
+          <span class="media-item-meta">${item.type === 'folder' ? 'Folder' : `${escHtml(kindLabel(item))} • ${bytesLabel(item.size)}`}</span>
         </span>
       </button>
       <div class="media-item-actions">
@@ -575,7 +589,12 @@ function renderMediaList() {
   const list = document.getElementById('media-list');
   if (!list) return;
   if (!state.items.length) {
-    list.innerHTML = `<div class="sidebar-empty-state">No media yet</div>`;
+    list.innerHTML = `
+      <div class="sidebar-empty-state rich-empty-state">
+        <strong>No files here yet</strong>
+        <span>Use the <b>+</b> menu to upload files, write notes, or create folders.</span>
+      </div>
+    `;
     return;
   }
 
@@ -657,7 +676,12 @@ function renderMediaTrashOverlay() {
   if (!list || !bar) return;
 
   if (!state.trash.items.length) {
-    list.innerHTML = `<div class="sidebar-empty-state">Trash is empty</div>`;
+    list.innerHTML = `
+      <div class="sidebar-empty-state rich-empty-state">
+        <strong>Trash is empty</strong>
+        <span>Deleted files will appear here until they are restored or removed forever.</span>
+      </div>
+    `;
     bar.classList.add('hidden');
     bar.innerHTML = '';
     return;
@@ -768,10 +792,30 @@ function openCreateMenu(event) {
   const btn = event.currentTarget;
   const rect = btn.getBoundingClientRect();
   showContextMenu(rect.left, rect.bottom + 8, [
-    { label: 'Rich Text', icon: '+', onClick: () => promptForDocument({ richText: true }) },
-    { label: 'Plain Text', icon: '+', onClick: () => promptForDocument({ richText: false }) },
-    { label: 'File Upload', icon: '+', onClick: () => document.getElementById('media-upload-input')?.click() },
-    { label: 'Folder', icon: '+', onClick: () => promptForFolder() },
+    {
+      label: 'Rich Text',
+      description: 'Create a formatted document with headings, quotes, and links.',
+      icon: 'RT',
+      onClick: () => promptForDocument({ richText: true }),
+    },
+    {
+      label: 'Plain Text',
+      description: 'Start a lightweight note for prompts, code, or raw text.',
+      icon: 'TXT',
+      onClick: () => promptForDocument({ richText: false }),
+    },
+    {
+      label: 'File Upload',
+      description: 'Add files from your device into this folder.',
+      icon: 'UP',
+      onClick: () => document.getElementById('media-upload-input')?.click(),
+    },
+    {
+      label: 'Folder',
+      description: 'Create a folder to organize uploads and documents.',
+      icon: 'DIR',
+      onClick: () => promptForFolder(),
+    },
   ]);
 }
 
@@ -847,7 +891,7 @@ export function openMediaPicker({ onSelect, title = 'Add From Media Library', co
             <span class="media-item-icon">${kindIcon(item)}</span>
             <span class="media-item-copy">
               <span class="media-item-name">${escHtml(item.name)}</span>
-              <span class="media-item-meta">${item.type === 'folder' ? 'Folder' : `${escHtml(item.kind || 'file')} • ${bytesLabel(item.size)}`}</span>
+              <span class="media-item-meta">${item.type === 'folder' ? 'Folder' : `${escHtml(kindLabel(item))} • ${bytesLabel(item.size)}`}</span>
             </span>
           </button>
           ${selectable ? `
@@ -1016,6 +1060,10 @@ export function openMediaTrashView() {
   document.getElementById('sidebar-trash-subtitle').textContent = 'Recently deleted files and folders';
   renderMediaTrashOverlay();
   refreshMediaTrashView();
+}
+
+export function closeMediaEditor() {
+  closeEditor();
 }
 
 export function initMediaSidebar() {

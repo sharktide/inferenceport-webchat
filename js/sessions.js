@@ -412,7 +412,7 @@ function groupByDate(allSessions) {
   ]);
 
   for (const session of allSessions) {
-    const t = session.created || 0;
+    const t = session.history?.at(-1)?.timestamp || session.created || 0;
     if (t >= today) groups.get('Today').push(session);
     else if (t >= yesterday) groups.get('Yesterday').push(session);
     else if (t >= week) groups.get('This Week').push(session);

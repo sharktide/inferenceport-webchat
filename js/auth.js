@@ -103,6 +103,7 @@ export async function logout() {
   notifyListeners();
   updateSidebarProfile();
   initAsGuest();
+  import('./app.js').then((m) => m.resetToNewChatView()).catch(() => {});
 }
 
 // ── Session handling ──────────────────────────────────────────────────────
@@ -110,14 +111,15 @@ export async function logout() {
 async function handleSupabaseSession(data, { showWelcome = false } = {}) {
   console.log('[Frontend Auth] handleSupabaseSession called with token:', data.access_token?.slice(0, 20) + '...');
   if (!data.access_token) throw new Error('No access token');
-  saveAuth({ access_token: data.access_token, refresh_token: data.refresh_token, user: data.user });
+  const existingAuth = loadAuth() || {};
+  saveAuth({ ...existingAuth, access_token: data.access_token, refresh_token: data.refresh_token, user: data.user });
 
   return new Promise((resolve, reject) => {
     const tempId   = getTempId();
     const clientId = getClientId();
     console.log('[Frontend Auth] Sending auth:login to backend with token:', data.access_token?.slice(0, 20) + '...');
     send({ type: 'auth:login', accessToken: data.access_token, refreshToken: data.refresh_token,
-      tempId, clientId });
+      tempId, clientId, deviceToken: existingAuth.deviceToken || null });
 
     const unsubOk  = on('auth:ok',    (msg) => {
       console.log('[Frontend Auth] Received auth:ok response');
@@ -125,7 +127,7 @@ async function handleSupabaseSession(data, { showWelcome = false } = {}) {
       unsubErr();
       applyAuthOk(msg);
       if (showWelcome) {
-        import('./sessions.js').then((m) => m.showWelcomeScreen()).catch(() => {});
+        import('./app.js').then((m) => m.resetToNewChatView()).catch(() => {});
       }
       resolve(msg);
     });

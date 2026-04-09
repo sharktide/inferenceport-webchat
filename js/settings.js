@@ -257,7 +257,7 @@ function renderMemoriesList(b, memoryState) {
   list.innerHTML = items.map((memory) => `
     <div class="memory-item${memoryState.editingId === memory.id ? ' editing' : ''}" data-memory-id="${escHtml(memory.id)}">
       ${memoryState.editingId === memory.id ? `
-        <textarea class="memory-edit-input" data-memory-input="${escHtml(memory.id)}">${escHtml(memoryState.draft ?? memory.content)}</textarea>
+        <input class="memory-edit-input" data-memory-input="${escHtml(memory.id)}" value="${escHtml(memoryState.draft ?? memory.content)}" />
         <div class="memory-inline-actions">
           <button class="btn-ghost memory-cancel-btn" data-memory-cancel="${escHtml(memory.id)}">Cancel</button>
           <button class="btn-primary memory-save-btn" data-memory-save="${escHtml(memory.id)}">Save</button>
@@ -270,7 +270,7 @@ function renderMemoriesList(b, memoryState) {
             <span>${escHtml(new Date(memory.updatedAt).toLocaleString())}</span>
           </div>
         </div>
-        <button class="memory-menu-btn" data-memory-menu="${escHtml(memory.id)}">...</button>
+        <button class="memory-menu-btn" data-memory-menu="${escHtml(memory.id)}" aria-label="Memory options">&#8943;</button>
       `}
     </div>
   `).join('');
@@ -317,6 +317,22 @@ function renderMemoriesList(b, memoryState) {
     });
   });
 
+  list.querySelectorAll('[data-memory-input]').forEach((input) => {
+    input.addEventListener('input', () => {
+      memoryState.draft = input.value;
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        list.querySelector(`[data-memory-save="${input.dataset.memoryInput}"]`)?.click();
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        list.querySelector(`[data-memory-cancel="${input.dataset.memoryInput}"]`)?.click();
+      }
+    });
+  });
+
   list.querySelectorAll('[data-memory-cancel]').forEach((btn) => {
     btn.addEventListener('click', () => {
       memoryState.editingId = null;
@@ -324,6 +340,17 @@ function renderMemoriesList(b, memoryState) {
       renderMemoriesList(b, memoryState);
     });
   });
+
+  if (memoryState.editingId) {
+    queueMicrotask(() => {
+      const input = list.querySelector(`[data-memory-input="${memoryState.editingId}"]`);
+      input?.focus();
+      if (typeof input?.setSelectionRange === 'function') {
+        const end = input.value?.length || 0;
+        input.setSelectionRange(end, end);
+      }
+    });
+  }
 }
 
 function loadMemoriesInto(memoryState) {
@@ -491,7 +518,7 @@ function setupAccountSettings(b) {
   unsubs.push(on('account:subscription', subHandler));
 
   const sessHandler = (msg) => {
-    deviceState.sessions = msg.sessions || [];
+    deviceState.sessions = (msg.sessions || []).filter((session) => session.active !== false);
     deviceState.currentToken = msg.currentToken || deviceState.currentToken;
     renderDeviceSessions();
     return;
