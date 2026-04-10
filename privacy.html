@@ -190,9 +190,21 @@
         and where third-party services may be involved.
       </p>
       <div class="hero-links">
-        <a href="./">Back To Chat</a>
-        <a href="./terms.html">Read Terms Of Service</a>
+        <a id="back-chat-link" href="#">Back To Chat</a>
+        <a id="terms-link" href="#">Read Terms of Service</a>
       </div>
+      <script>
+        (function () {
+          const isChatRoute = location.pathname.startsWith('/chat');
+          const basePath = isChatRoute ? '/chat/' : '/';
+
+          // Back to chat
+          document.getElementById('back-chat-link').href = basePath;
+
+          // Privacy policy
+          document.getElementById('terms-link').href = basePath + 'terms.html';
+        })();
+      </script>
     </section>
 
     <section class="grid">

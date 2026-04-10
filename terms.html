@@ -171,9 +171,21 @@
         the uses that are prohibited, and the responsibilities that stay with the user.
       </p>
       <div class="hero-links">
-        <a href="./">Back To Chat</a>
-        <a href="./privacy.html">Read Privacy Policy</a>
+        <a id="back-chat-link" href="#">Back To Chat</a>
+        <a id="privacy-link" href="#">Read Privacy Policy</a>
       </div>
+      <script>
+        (function () {
+          const isChatRoute = location.pathname.startsWith('/chat');
+          const basePath = isChatRoute ? '/chat/' : '/';
+
+          // Back to chat
+          document.getElementById('back-chat-link').href = basePath;
+
+          // Privacy policy
+          document.getElementById('privacy-link').href = basePath + 'privacy.html';
+        })();
+      </script>
     </section>
 
     <section class="grid">
