@@ -1479,17 +1479,17 @@ function streamingToolStatus(call = {}) {
   if (call.state === 'resolved') return 'Thinking';
   if (call.state === 'canceled') return `${toolLabel(call.name)} canceled`;
   const names = {
-    ollama_search: 'Searching the webâ€¦',
-    read_web_page: 'Reading the pageâ€¦',
-    generate_image: 'Generating an imageâ€¦',
-    generate_video: 'Generating a videoâ€¦',
-    generate_audio: 'Generating audioâ€¦',
-    save_memory: 'Saving memoryâ€¦',
-    delete_memory: 'Deleting memoryâ€¦',
-    list_memories: 'Checking memoriesâ€¦',
-    edit_response_draft: 'Revising the draftâ€¦',
+    ollama_search: 'Searching the web',
+    read_web_page: 'Reading the page',
+    generate_image: 'Generating an image',
+    generate_video: 'Generating a video',
+    generate_audio: 'Generating audio',
+    save_memory: 'Saving memory',
+    delete_memory: 'Deleting memory',
+    list_memories: 'Checking memories',
+    edit_response_draft: 'Revising the draft',
   };
-  return names[call.name] || `${toolLabel(call.name)} runningâ€¦`;
+  return names[call.name] || `${toolLabel(call.name)} running`;
 }
 
 function renderStreamingBubble() {
@@ -1554,9 +1554,9 @@ function onChatStart(msg) {
   streamingStartMeta = { ...msg };
   streamingSourceHistory = Array.isArray(currentHistory) ? [...currentHistory] : [];
   streamingStatusLabel = msg.action === 'continue'
-    ? 'Continuing the responseâ€¦'
+    ? 'Continuing the response'
     : msg.action === 'regenerate'
-      ? 'Regenerating responseâ€¦'
+      ? 'Regenerating response'
       : 'Thinking';
   sessionErrorStates.delete(sessionId);
 
@@ -1603,7 +1603,7 @@ function onChatStart(msg) {
 //   if (!streamingBubble) return;
 //   streamingText = msg.text || streamingText;
 //   if (msg.edit) streamingDraftEdits.push(msg.edit);
-//   streamingStatusLabel = 'Revising responseâ€¦';
+//   streamingStatusLabel = 'Revising response';
 //   renderStreamingBubble();
 // }
 
