@@ -1476,7 +1476,7 @@ function hasStreamingContent() {
 }
 
 function streamingToolStatus(call = {}) {
-  if (call.state === 'resolved') return 'Thinkingâ€¦';
+  if (call.state === 'resolved') return 'Thinking';
   if (call.state === 'canceled') return `${toolLabel(call.name)} canceled`;
   const names = {
     ollama_search: 'Searching the webâ€¦',
@@ -1523,7 +1523,7 @@ function renderStreamingBubble() {
       <span class="assistant-stream-dot"></span>
       <span class="assistant-stream-dot"></span>
     </span>
-    <span class="assistant-stream-label">${escHtml(streamingStatusLabel || 'Thinkingâ€¦')}</span>
+    <span class="assistant-stream-label">${escHtml(streamingStatusLabel || 'Thinking')}</span>
   `;
   streamingBubble.appendChild(status);
 }
@@ -1536,7 +1536,7 @@ function clearStreamingState() {
   streamingSegments = [];
   streamingLiveTextSegmentIndex = -1;
   streamingToolSegmentIndexById = new Map();
-  streamingStatusLabel = 'Thinkingâ€¦';
+  streamingStatusLabel = 'Thinking';
   streamingStartMeta = null;
   streamingSourceHistory = [];
 }
@@ -1557,7 +1557,7 @@ function onChatStart(msg) {
     ? 'Continuing the responseâ€¦'
     : msg.action === 'regenerate'
       ? 'Regenerating responseâ€¦'
-      : 'Thinkingâ€¦';
+      : 'Thinking';
   sessionErrorStates.delete(sessionId);
 
   if (sessionId !== activeSessionId) return;
@@ -1591,7 +1591,7 @@ function onChatStart(msg) {
 //   if (!streamingBubble) return;
 //   ensureLiveTextSegment();
 //   streamingText += token;
-//   streamingStatusLabel = 'Thinkingâ€¦';
+//   streamingStatusLabel = 'Thinking';
 //   renderStreamingBubble();
 //   if (autoScroll) {
 //     const box = document.getElementById('chat-messages');
