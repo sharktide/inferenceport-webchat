@@ -429,23 +429,36 @@
   let currentType = 'issue';
   let currentEnv = 'production';
 
+  document.addEventListener('DOMContentLoaded', updateEnvButtons);
+
   function setType(type) {
     currentType = type;
     document.getElementById('btnIssue').className = 'toggle-btn' + (type === 'issue' ? ' active' : '');
     document.getElementById('btnImprovement').className = 'toggle-btn' + (type === 'improvement' ? ' active' : '');
     const envField = document.getElementById('envField');
-    if (type === 'issue') {
-      envField.classList.remove('hidden-field');
-    } else {
-      envField.classList.add('hidden-field');
+    envField.classList.remove('hidden-field');
+    if (type === 'improvement' && currentEnv === 'beta') {
+        setEnv('production');
     }
+    updateEnvButtons();
   }
 
   function setEnv(env) {
     currentEnv = env;
-    document.getElementById('btnProduction').className = 'toggle-btn' + (env === 'production' ? ' active-blue' : '');
-    document.getElementById('btnBeta').className = 'toggle-btn' + (env === 'beta' ? ' active-blue' : '');
-    document.getElementById('btnApp').className = 'toggle-btn' + (env === 'app' ? ' active-blue' : '');
+    updateEnvButtons();
+  }
+
+  function updateEnvButtons() {
+    const betaDisabled = currentType === 'improvement';
+    const btnBeta = document.getElementById('btnBeta');
+    btnBeta.disabled = betaDisabled;
+    btnBeta.style.opacity = betaDisabled ? '0.35' : '';
+    btnBeta.style.cursor = betaDisabled ? 'not-allowed' : '';
+    btnBeta.style.pointerEvents = betaDisabled ? 'none' : '';
+
+    document.getElementById('btnProduction').className = 'toggle-btn' + (currentEnv === 'production' ? ' active-blue' : '');
+    document.getElementById('btnBeta').className = 'toggle-btn' + (currentEnv === 'beta' ? ' active-blue' : '');
+    document.getElementById('btnApp').className = 'toggle-btn' + (currentEnv === 'app' ? ' active-blue' : '');
   }
 
   function updateCharCount(inputId, countId, max) {
