@@ -204,7 +204,10 @@
     @media (min-width: 769px) {
       /* On desktop, navbar is static at top — no pull-down needed */
       #site-navbar-wrap {
-        position: relative;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
         transform: none !important;
         z-index: 1100;
       }

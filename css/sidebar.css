@@ -593,6 +593,10 @@
     pointer-events: auto !important;
   }
 
+  #sidebar {
+    padding-top: var(--snav-height, 52px);
+  }
+
   .user-profile-btn {
     flex: 1 !important;
     width: auto !important;
@@ -606,6 +610,7 @@
     height: var(--app-height, 100dvh) !important;
     width: 100% !important;
     overflow: hidden;
+    padding-top: var(--snav-height, 52px);
   }
 
   /* ── Backdrop ── */
