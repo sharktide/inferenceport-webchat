@@ -202,7 +202,6 @@
     }
 
     @media (min-width: 769px) {
-      /* On desktop, navbar is static at top — no pull-down needed */
       #site-navbar-wrap {
         position: fixed;
         top: 0;
@@ -215,6 +214,7 @@
       #app { display: flex; height: var(--app-height, 100dvh); overflow: hidden; width: 100%; max-width: 100%; }
       body.has-snav #app {
         height: calc(var(--app-height, 100dvh) - var(--snav-height, 52px));
+        max-height: calc(var(--app-height, 100dvh) - var(--snav-height, 52px));
         margin-top: var(--snav-height, 52px);
       }
     }
