@@ -229,6 +229,11 @@
         width: 100%;
         max-width: 100%;
       }
+
+      body.has-snav #app {
+        height: calc(100dvh - var(--snav-height, 52px));
+        max-height: calc(var(--app-height, 100dvh) - var(--snav-height, 52px));
+      }
     }
 
     /* ─── Core layout (original, preserved) ──────────────────────────────── */
