@@ -204,9 +204,7 @@
     @media (min-width: 769px) {
       #site-navbar-wrap {
         position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
+        top: 0; left: 0; right: 0;
         transform: none !important;
         z-index: 1100;
       }
@@ -214,7 +212,6 @@
       body {
         overflow: hidden;
         height: 100%;
-        max-height: var(--app-height, 100dvh);
         width: 100%;
         max-width: 100%;
       }
@@ -229,11 +226,6 @@
         overflow: hidden;
         width: 100%;
         max-width: 100%;
-      }
-
-      body.has-snav #app {
-        height: calc(100dvh - var(--snav-height, 52px));
-        max-height: calc(var(--app-height, 100dvh) - var(--snav-height, 52px));
       }
     }
 
