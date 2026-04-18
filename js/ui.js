@@ -172,6 +172,33 @@ export function closeContextMenu() {
 const codeStore = new Map();
 let codeStoreCounter = 0;
 const COLOR_TOKEN_RE = /#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b|\b(?:rgb|hsl)a?\([^)]*\)|\b(?:lab|lch|hwb|oklab|oklch)\([^)]*\)/g;
+const CODE_LANG_ALIASES = {
+  csharp: 'csharp',
+  'c#': 'csharp',
+  cs: 'csharp',
+  'c++': 'cpp',
+  cpp: 'cpp',
+  htm: 'xml',
+  html: 'xml',
+  js: 'javascript',
+  jsx: 'jsx',
+  md: 'markdown',
+  objc: 'objectivec',
+  'objective-c': 'objectivec',
+  plaintext: 'plaintext',
+  plain: 'plaintext',
+  ps1: 'powershell',
+  py: 'python',
+  rb: 'ruby',
+  shellscript: 'bash',
+  shell: 'bash',
+  sh: 'bash',
+  text: 'plaintext',
+  ts: 'typescript',
+  tsx: 'tsx',
+  yml: 'yaml',
+  zsh: 'bash',
+};
 
 function isCssColorValue(token) {
   if (!token) return false;
@@ -202,6 +229,28 @@ function renderCodeWithColorSwatches(source) {
   return html;
 }
 
+function extractFenceLanguage(rawLang) {
+  const token = String(rawLang || '').trim().split(/\s+/)[0] || '';
+  return token
+    .toLowerCase()
+    .replace(/^[^a-z0-9+#.-]+/, '')
+    .replace(/[^a-z0-9+#.-]+$/, '');
+}
+
+function highlightCodeBlock(source, rawLang) {
+  const code = String(source || '');
+  const fenceLang = extractFenceLanguage(rawLang);
+  const lang = CODE_LANG_ALIASES[fenceLang] || fenceLang;
+  const hljs = window.hljs;
+  if (!hljs || !lang || typeof hljs.highlight !== 'function') return '';
+  if (typeof hljs.getLanguage === 'function' && !hljs.getLanguage(lang)) return '';
+  try {
+    return hljs.highlight(code, { language: lang, ignoreIllegals: true }).value || '';
+  } catch {
+    return '';
+  }
+}
+
 function buildMarkdownOptions() {
   const renderer = new marked.Renderer();
 
@@ -212,11 +261,12 @@ function buildMarkdownOptions() {
 
     const rawCode = typeof code === 'object' ? (code.text || '') : code;
     const rawLang = typeof code === 'object' ? (code.lang || lang || 'code') : (lang || 'code');
+    const displayLang = extractFenceLanguage(rawLang) || 'code';
+    const highlightedCode = highlightCodeBlock(rawCode, rawLang);
+    const renderedCode = highlightedCode || renderCodeWithColorSwatches(rawCode);
+    const codeClass = `${highlightedCode ? 'hljs ' : ''}language-${displayLang}`;
 
-    const escapedCode = renderCodeWithColorSwatches(rawCode);
-    const displayLang = rawLang || 'code';
-
-    if (rawLang === 'svg') {
+    if (displayLang === 'svg') {
       return `<div class="svg-render-block" data-svg="${escAttr(rawCode)}">
         <img src="data:image/svg+xml,${encodeURIComponent(rawCode)}" style="max-width:100%;cursor:pointer;" alt="SVG">
       </div>`;
@@ -226,7 +276,7 @@ function buildMarkdownOptions() {
         <span class="code-lang">${escHtml(displayLang)}</span>
         <button class="code-copy-btn" data-code-key="${escAttr(key)}">Copy</button>
       </div>
-      <pre><code class="language-${escHtml(displayLang)}">${escapedCode}</code></pre>
+      <pre><code class="${escAttr(codeClass)}">${renderedCode}</code></pre>
     </div>`;
   };
 

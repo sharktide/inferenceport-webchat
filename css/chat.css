@@ -457,6 +457,7 @@
 .code-copy-btn:hover { color: var(--text); background: var(--bg-hover); }
 
 .code-block pre {
+  margin: 0;
   padding: 14px 16px;
   overflow-x: auto;
   font-size: 13px;
@@ -472,6 +473,76 @@
   border-radius: 0 !important;
   font-size: inherit !important;
   color: inherit !important;
+}
+
+.code-block pre code.hljs,
+.code-block code.hljs {
+  display: block;
+}
+
+.code-block .hljs-comment,
+.code-block .hljs-quote {
+  color: #7c8599;
+  font-style: italic;
+}
+
+.code-block .hljs-keyword,
+.code-block .hljs-selector-tag,
+.code-block .hljs-literal,
+.code-block .hljs-name {
+  color: #ff7ab6;
+}
+
+.code-block .hljs-built_in,
+.code-block .hljs-type,
+.code-block .hljs-class .hljs-title,
+.code-block .hljs-title.class_ {
+  color: #82aaff;
+}
+
+.code-block .hljs-title,
+.code-block .hljs-title.function_,
+.code-block .hljs-function .hljs-title {
+  color: #7bdff2;
+}
+
+.code-block .hljs-string,
+.code-block .hljs-regexp,
+.code-block .hljs-meta .hljs-string {
+  color: #a5ff90;
+}
+
+.code-block .hljs-number,
+.code-block .hljs-symbol,
+.code-block .hljs-bullet {
+  color: #f7c873;
+}
+
+.code-block .hljs-variable,
+.code-block .hljs-template-variable,
+.code-block .hljs-attr,
+.code-block .hljs-attribute {
+  color: #c7a7ff;
+}
+
+.code-block .hljs-operator,
+.code-block .hljs-punctuation {
+  color: #93a4bf;
+}
+
+.code-block .hljs-meta,
+.code-block .hljs-meta .hljs-keyword {
+  color: #8be9fd;
+}
+
+.code-block .hljs-tag {
+  color: #ff966c;
+}
+
+.code-block .hljs-subst,
+.code-block .hljs-property,
+.code-block .hljs-doctag {
+  color: #e2e8f0;
 }
 
 /* Inline code */
