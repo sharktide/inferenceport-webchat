@@ -825,7 +825,7 @@ function renderMediaList() {
         <strong>No files here yet</strong>
         <span>${canModifyMediaLibrary()
           ? 'Use the <b>+</b> menu to upload files, write notes, or create folders.'
-          : 'Sign in to upload files, write notes, or create folders.'}</span>
+          : 'Sign in to use cloud files.'}</span>
       </div>
     `;
     return;
