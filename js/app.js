@@ -33,7 +33,10 @@ const MAX_TEXT_UPLOAD_BYTES = 100 * 1024;
     const viewport = window.visualViewport;
     const height = Math.round(viewport?.height || window.innerHeight || document.documentElement.clientHeight || 0);
     const offsetTop = Math.max(0, Math.round(viewport?.offsetTop || 0));
-    document.documentElement.style.setProperty('--app-height', `${height}px`);
+    // Don't override --app-height on inference.js.org when navbar is present (body.has-snav is set)
+    if (!document.body.classList.contains('has-snav')) {
+      document.documentElement.style.setProperty('--app-height', `${height}px`);
+    }
     document.documentElement.style.setProperty('--viewport-offset-top', `${offsetTop}px`);
   };
 
