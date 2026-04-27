@@ -56,24 +56,16 @@
     return false;
   }
 
-  // Global callback for Cloudflare Turnstile — ensure single handling
   window.onTurnstileSuccess = async function(token) {
-    if (!token || handled) return; handled = true;
+    if (!token || handled) return;
+    handled = true;
 
-    // Prefer websocket verify for immediate session validation
-    let ok = await doWebsocketVerify(token);
+    const ok = await doRestVerify(token);
     if (ok) {
       setLocalTurnstileCookie();
       hideOverlay();
-      return;
-    }
-
-    // Fallback to REST verify (sets cookie server-side)
-    ok = await doRestVerify(token);
-    if (ok) setLocalTurnstileCookie();
-    if (ok) hideOverlay();
-    else {
-      // If both failed, allow retry by resetting handled after short delay
+      if (window.ws?.reconnect) window.ws.reconnect();
+    } else {
       handled = false;
       showOverlay();
     }
