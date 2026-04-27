@@ -60,17 +60,25 @@
     if (!token || handled) return;
     handled = true;
 
-    const ok = await doRestVerify(token);
-    if (ok) {
-      setLocalTurnstileCookie();
-      hideOverlay();
-      if (window.ws?.reconnect) window.ws.reconnect();
-    } else {
-      handled = false;
-      showOverlay();
+    try {
+      const r = await fetch('/api/turnstile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+      const data = await r.json();
+      if (r.ok && data.confirmToken) {
+        setLocalTurnstileCookie();
+        if (window.ws?.send) window.ws.send({ type: 'turnstile:confirm', token: data.confirmToken });
+        hideOverlay();
+        return;
+      }
+    } catch (e) {
+      console.error('Turnstile verify failed', e);
     }
-  };
 
-  // Initialize visibility
+    handled = false;
+    showOverlay();
+  };
   if (hasTurnstileCookie()) hideOverlay(); else showOverlay();
 })();
