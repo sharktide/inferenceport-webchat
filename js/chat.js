@@ -475,7 +475,7 @@ function buildCrossClientMediaNotice(type) {
   const wrap = document.createElement('div');
   wrap.className = 'msg-group';
   const bubble = document.createElement('div');
-  bubble.className = 'msg-assistant';
+  bubble.className = 'msg-media-sync-error';
   if (type === 'video') {
     bubble.textContent = 'Video generation is not synced between desktop and web yet. View this video in the original app or website where it was generated.';
   } else if (type === 'audio') {
