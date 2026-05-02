@@ -316,8 +316,8 @@ function canContinueAssistant(history = [], index = -1) {
 function buildAssistantTimeline(msg = {}) {
   const timeline = document.createElement('div');
   timeline.className = 'assistant-timeline';
-
   const toolCalls = getMessageToolCalls(msg);
+
   const segments = Array.isArray(msg.responseSegments) && msg.responseSegments.length
     ? msg.responseSegments
     : [{ type: 'text', text: msg.content || '' }];
@@ -423,13 +423,17 @@ function appendMediaMsg(box, type, content) {
   } else if (type === 'video') {
     const v = document.createElement('video');
     v.controls = true; v.preload = 'metadata';
-    hydrateMediaElement(v, contentRef, 'src');
+    hydrateMediaElement(v, contentRef, 'src', () => {
+      wrap.replaceWith(buildCrossClientMediaNotice('video'));
+    });
     wrap.appendChild(v);
     wrap.appendChild(dlBtn(() => downloadMedia(contentRef)));
   } else if (type === 'audio') {
     const a = document.createElement('audio');
     a.controls = true; a.preload = 'metadata'; a.style.width = '100%';
-    hydrateMediaElement(a, contentRef, 'src');
+    hydrateMediaElement(a, contentRef, 'src', () => {
+      wrap.replaceWith(buildCrossClientMediaNotice('audio'));
+    });
     wrap.appendChild(a);
     const db = dlBtn(() => downloadMedia(contentRef));
     db.style.cssText += ';position:static;margin-top:6px;opacity:1;';
@@ -441,11 +445,15 @@ function appendMediaMsg(box, type, content) {
 function toMediaContentRef(type, content) {
   const defaultName = type === 'image' ? 'image.png' : type === 'video' ? 'video.mp4' : 'audio.mp3';
   if (typeof content === 'string') {
-    if (isInlineMediaSource(content)) return { src: content, name: defaultName };
-    return { assetId: content, name: defaultName };
+    const value = content.trim();
+    if (!value) return { src: '', name: defaultName };
+    if (isInlineMediaSource(value)) return { src: value, name: defaultName };
+    return { assetId: value, name: defaultName };
   }
   if (content && typeof content === 'object') {
-    const assetId = content.assetId || content.id || '';
+    const assetId = typeof content.assetId === 'string'
+      ? content.assetId.trim()
+      : (typeof content.id === 'string' ? content.id.trim() : '');
     if (assetId) {
       return {
         assetId,
@@ -453,7 +461,7 @@ function toMediaContentRef(type, content) {
         name: content.name || defaultName,
       };
     }
-    if (typeof content.src === 'string') {
+    if (typeof content.src === 'string' && isInlineMediaSource(content.src)) {
       return { src: content.src, name: content.name || defaultName };
     }
   }
@@ -465,6 +473,18 @@ function isInlineMediaSource(value) {
   return v.startsWith('data:') || v.startsWith('blob:') || v.startsWith('http://') || v.startsWith('https://');
 }
 
+function buildCrossClientMediaNotice(type) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-group';
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-assistant';
+  bubble.textContent = type === 'video'
+    ? 'Video generation is not synced between desktop and web yet. View this video in the original app or website where it was generated.'
+    : 'Audio generation is not synced between desktop and web yet. View this audio in the original app or website where it was generated.';
+  wrap.appendChild(bubble);
+  return wrap;
+}
+
 function appendToolMsg(box, msg = {}) {
   const wrap = document.createElement('div');
   wrap.className = 'msg-group';
@@ -473,24 +493,86 @@ function appendToolMsg(box, msg = {}) {
 
   const payload = safeParseJson(msg.content);
   const status = typeof payload?.status === 'string' ? payload.status : 'resolved';
-  const call = normalizeToolCall({
-    id: msg.tool_call_id || msg.id,
-    name: msg.name || 'tool',
-    state: status,
-    result: typeof payload?.message === 'string' ? payload.message : (typeof msg.content === 'string' ? msg.content : ''),
-  });
+  const callName = msg.name || 'tool';
 
-  bubble.appendChild(buildToolChip(call));
+  const header = document.createElement('div');
+  header.className = 'assistant-tool-header';
+  header.textContent = toolStatusLabel(callName, status);
+  bubble.appendChild(header);
 
-  if (call.result && call.result !== '⏳ Running…') {
-    const summary = document.createElement('div');
-    summary.className = 'assistant-tool-summary';
-    summary.textContent = String(call.result);
-    bubble.appendChild(summary);
+  const options = payload && typeof payload === 'object' ? payload.options : null;
+  if (options && typeof options === 'object') {
+    bubble.appendChild(buildToolOptionSummary(callName, options));
+  }
+
+  const message = typeof payload?.message === 'string'
+    ? payload.message
+    : (typeof msg.content === 'string' ? msg.content : '');
+  if (message && message !== '⏳ Running…') {
+    const detail = document.createElement('div');
+    detail.className = 'assistant-tool-summary';
+    detail.textContent = message;
+    bubble.appendChild(detail);
   }
 
   wrap.appendChild(bubble);
   box.appendChild(wrap);
+}
+
+function toolStatusLabel(name, status) {
+  if (name === 'generate_image') {
+    if (status === 'awaiting_input') return 'Image generation requested';
+    if (status === 'pending') return 'Generating image';
+    if (status === 'canceled') return 'Image generation canceled';
+    return 'Generated image';
+  }
+  if (name === 'generate_video') {
+    if (status === 'awaiting_input') return 'Video generation requested';
+    if (status === 'pending') return 'Generating video';
+    if (status === 'canceled') return 'Video generation canceled';
+    return 'Generated video';
+  }
+  if (name === 'generate_audio') {
+    if (status === 'awaiting_input') return 'Audio generation requested';
+    if (status === 'pending') return 'Generating audio';
+    if (status === 'canceled') return 'Audio generation canceled';
+    return 'Generated audio';
+  }
+  return `Tool: ${name}`;
+}
+
+function buildToolOptionSummary(name, options) {
+  const summary = document.createElement('div');
+  summary.className = 'assistant-tool-summary';
+  const rows = [];
+  if (name === 'generate_image') {
+    rows.push(['Prompt', String(options.prompt || '(none)')]);
+    rows.push(['Mode', String(options.mode || 'auto')]);
+    const imageUrls = Array.isArray(options.image_urls) ? options.image_urls.filter(Boolean) : [];
+    if (imageUrls.length) {
+      imageUrls.forEach((url, idx) => rows.push([`Image ${idx + 1}`, String(url)]));
+    }
+  } else if (name === 'generate_video') {
+    rows.push(['Prompt', String(options.prompt || '(none)')]);
+    rows.push(['Ratio', String(options.ratio || '3:2')]);
+    rows.push(['Mode', String(options.mode || 'normal')]);
+    rows.push(['Duration', `${options.duration ?? 5}s`]);
+    const imageUrls = Array.isArray(options.image_urls) ? options.image_urls.filter(Boolean) : [];
+    if (imageUrls.length) {
+      imageUrls.forEach((url, idx) => rows.push([`Image ${idx + 1}`, String(url)]));
+    }
+  } else if (name === 'generate_audio') {
+    rows.push(['Prompt', String(options.prompt || '(none)')]);
+  }
+
+  if (!rows.length) return summary;
+  summary.innerHTML = rows.map(([label, value]) => `
+    <div style="display:flex;gap:8px;align-items:flex-start;margin-top:4px;">
+      <div style="min-width:72px;opacity:.75;">${escHtml(label)}</div>
+      <div style="white-space:pre-wrap;word-break:break-word;">${escHtml(value)}</div>
+    </div>
+  `).join('');
+  return summary;
 }
 
 function safeParseJson(input) {
@@ -685,11 +767,13 @@ async function resolveMediaUrl(contentRef) {
   return getMediaObjectUrl(contentRef.assetId);
 }
 
-function hydrateMediaElement(el, contentRef, prop = 'src') {
+function hydrateMediaElement(el, contentRef, prop = 'src', onError = null) {
   resolveMediaUrl(contentRef).then((url) => {
     if (url) el[prop] = url;
+    else throw new Error('Missing media URL');
   }).catch(() => {
     el.classList.add('media-load-error');
+    if (typeof onError === 'function') onError();
   });
 }
 
