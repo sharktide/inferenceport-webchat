@@ -87,7 +87,17 @@ function extractFlatHistoryFromTree(rootMessage) {
     if (!msg) return msg;
     const currentVersion = getActiveVersion(msg);
     msg.content = currentVersion?.content ?? msg.content ?? '';
-    ['toolCalls', 'responseEdits', 'responseSegments', 'error'].forEach((key) => {
+    const toolCalls = Array.isArray(currentVersion?.toolCalls)
+      ? currentVersion.toolCalls
+      : (Array.isArray(currentVersion?.tool_calls) ? currentVersion.tool_calls : []);
+    if (toolCalls.length > 0) {
+      msg.toolCalls = cloneMetaValue(toolCalls);
+      msg.tool_calls = cloneMetaValue(toolCalls);
+    } else {
+      delete msg.toolCalls;
+      delete msg.tool_calls;
+    }
+    ['responseEdits', 'responseSegments', 'error'].forEach((key) => {
       if (currentVersion && key in currentVersion) msg[key] = cloneMetaValue(currentVersion[key]);
       else delete msg[key];
     });
@@ -153,6 +163,7 @@ export function renderHistory(history) {
     const cleanMsg = { ...msg, content: stripSessionTag(msg.content) };
     if      (cleanMsg.role === 'user')      appendUserMsg(box, cleanMsg, i);
     else if (cleanMsg.role === 'assistant') appendAssistantMsg(box, cleanMsg, i, currentHistory);
+    else if (cleanMsg.role === 'tool')      appendToolMsg(box, cleanMsg);
     else if (cleanMsg.role === 'image')     appendMediaMsg(box, 'image', cleanMsg.content);
     else if (cleanMsg.role === 'video')     appendMediaMsg(box, 'video', cleanMsg.content);
     else if (cleanMsg.role === 'audio')     appendMediaMsg(box, 'audio', cleanMsg.content);
@@ -183,9 +194,24 @@ export function renderHistory(history) {
 function normalizeIncomingHistory(history) {
   if (!Array.isArray(history)) return [];
   if (history.length === 1 && history[0]?.versions) {
-    return extractFlatHistoryFromTree(history[0]);
+    return extractFlatHistoryFromTree(history[0]).map(normalizeToolFields);
   }
-  return history;
+  return history.map(normalizeToolFields);
+}
+
+function normalizeToolFields(msg) {
+  if (!msg || typeof msg !== 'object') return msg;
+  const toolCalls = Array.isArray(msg.toolCalls)
+    ? msg.toolCalls
+    : (Array.isArray(msg.tool_calls) ? msg.tool_calls : []);
+  if (toolCalls.length > 0) {
+    msg.toolCalls = toolCalls;
+    msg.tool_calls = toolCalls;
+  } else {
+    delete msg.toolCalls;
+    delete msg.tool_calls;
+  }
+  return msg;
 }
 
 function stripSessionTag(content) {
@@ -291,17 +317,43 @@ function buildAssistantTimeline(msg = {}) {
   const timeline = document.createElement('div');
   timeline.className = 'assistant-timeline';
 
+  const toolCalls = getMessageToolCalls(msg);
   const segments = Array.isArray(msg.responseSegments) && msg.responseSegments.length
     ? msg.responseSegments
     : [{ type: 'text', text: msg.content || '' }];
 
   segments.forEach((segment, index) => {
     if (index > 0) timeline.appendChild(buildAssistantFlowDivider(segment.type));
-    if (segment.type === 'tool_call') timeline.appendChild(buildToolTimelineRow(segment, msg.toolCalls || []));
+    if (segment.type === 'tool_call') timeline.appendChild(buildToolTimelineRow(segment, toolCalls));
     else timeline.appendChild(buildAssistantTextSegment(segment.text || ''));
   });
 
   return timeline;
+}
+
+function getMessageToolCalls(msg = {}) {
+  const raw = Array.isArray(msg.toolCalls)
+    ? msg.toolCalls
+    : (Array.isArray(msg.tool_calls) ? msg.tool_calls : []);
+  return raw.map((call) => normalizeToolCall(call)).filter(Boolean);
+}
+
+function normalizeToolCall(call = {}) {
+  if (!call || typeof call !== 'object') return null;
+  const rawName = call.name || call?.function?.name || 'tool';
+  let args = call.args;
+  if (args === undefined && call?.function?.arguments !== undefined) {
+    try {
+      args = JSON.parse(call.function.arguments);
+    } catch {
+      args = call.function.arguments;
+    }
+  }
+  return {
+    ...call,
+    name: rawName,
+    args,
+  };
 }
 
 function buildAssistantTextSegment(text) {
@@ -356,9 +408,7 @@ function appendMediaMsg(box, type, content) {
   const wrap = document.createElement('div');
   wrap.className = 'msg-media';
 
-  const contentRef = typeof content === 'string'
-    ? { src: content, name: type === 'image' ? 'image.png' : type === 'video' ? 'video.mp4' : 'audio.mp3' }
-    : { assetId: content.assetId, mimeType: content.mimeType, name: content.name || `${type}` };
+  const contentRef = toMediaContentRef(type, content);
 
   if (type === 'image') {
     const img = document.createElement('img');
@@ -386,6 +436,72 @@ function appendMediaMsg(box, type, content) {
     wrap.appendChild(db);
   }
   box.appendChild(wrap);
+}
+
+function toMediaContentRef(type, content) {
+  const defaultName = type === 'image' ? 'image.png' : type === 'video' ? 'video.mp4' : 'audio.mp3';
+  if (typeof content === 'string') {
+    if (isInlineMediaSource(content)) return { src: content, name: defaultName };
+    return { assetId: content, name: defaultName };
+  }
+  if (content && typeof content === 'object') {
+    const assetId = content.assetId || content.id || '';
+    if (assetId) {
+      return {
+        assetId,
+        mimeType: content.mimeType,
+        name: content.name || defaultName,
+      };
+    }
+    if (typeof content.src === 'string') {
+      return { src: content.src, name: content.name || defaultName };
+    }
+  }
+  return { src: '', name: defaultName };
+}
+
+function isInlineMediaSource(value) {
+  const v = String(value || '').trim();
+  return v.startsWith('data:') || v.startsWith('blob:') || v.startsWith('http://') || v.startsWith('https://');
+}
+
+function appendToolMsg(box, msg = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-group';
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-assistant';
+
+  const payload = safeParseJson(msg.content);
+  const status = typeof payload?.status === 'string' ? payload.status : 'resolved';
+  const call = normalizeToolCall({
+    id: msg.tool_call_id || msg.id,
+    name: msg.name || 'tool',
+    state: status,
+    result: typeof payload?.message === 'string' ? payload.message : (typeof msg.content === 'string' ? msg.content : ''),
+  });
+
+  bubble.appendChild(buildToolChip(call));
+
+  if (call.result && call.result !== '⏳ Running…') {
+    const summary = document.createElement('div');
+    summary.className = 'assistant-tool-summary';
+    summary.textContent = String(call.result);
+    bubble.appendChild(summary);
+  }
+
+  wrap.appendChild(bubble);
+  box.appendChild(wrap);
+}
+
+function safeParseJson(input) {
+  if (typeof input !== 'string') return null;
+  const value = input.trim();
+  if (!value || (!value.startsWith('{') && !value.startsWith('['))) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 }
 
 // ── File content extraction from message ─────────────────────────────────
@@ -1391,7 +1507,12 @@ function onChatAborted(msg) {
 function appendAsset(asset) {
   const box = document.getElementById('chat-messages'); if (!box) return;
   pendingAssets.push(asset);
-  appendMediaMsg(box, asset.role, asset.content);
+  const mediaContent = asset?.content ?? (asset?.id ? {
+    assetId: asset.id,
+    mimeType: asset.mimeType,
+    name: asset.name,
+  } : asset?.content);
+  appendMediaMsg(box, asset.role, mediaContent);
   if (autoScroll) box.scrollTop = box.scrollHeight;
 }
 
