@@ -57,6 +57,22 @@ function sortSessionsInPlace() {
   });
 }
 
+function dedupeSessionsById(input = []) {
+  const map = new Map();
+  for (const session of Array.isArray(input) ? input : []) {
+    if (!session || !session.id) continue;
+    const existing = map.get(session.id);
+    if (!existing) {
+      map.set(session.id, session);
+      continue;
+    }
+    const existingTime = getSessionActivityTimestamp(existing);
+    const nextTime = getSessionActivityTimestamp(session);
+    map.set(session.id, nextTime >= existingTime ? session : existing);
+  }
+  return [...map.values()];
+}
+
 function getSessionActivityTimestamp(session) {
   const fallback = session?.created || 0;
   const history = Array.isArray(session?.history) ? session.history : [];
@@ -84,7 +100,7 @@ function getSessionActivityTimestamp(session) {
 }
 
 function syncSessionList(nextSessions = []) {
-  sessions = nextSessions;
+  sessions = dedupeSessionsById(nextSessions);
   sortSessionsInPlace();
   if (!hasSession(currentSessionId)) {
     currentSessionId = null;
@@ -157,7 +173,9 @@ on('chat:done', (msg) => {
 });
 
 on('sessions:imported', (msg) => {
-  sessions.unshift(msg.session);
+  const existing = sessions.findIndex((session) => session.id === msg.session.id);
+  if (existing >= 0) sessions[existing] = msg.session;
+  else sessions.unshift(msg.session);
   sortSessionsInPlace();
   renderChatSidebar();
   switchSession(msg.session.id);
@@ -497,7 +515,7 @@ function groupByDate(allSessions) {
   ]);
 
   for (const session of allSessions) {
-    const t = session.history?.at(-1)?.timestamp || session.created || 0;
+    const t = getSessionActivityTimestamp(session);
     if (t >= today) groups.get('Today').push(session);
     else if (t >= yesterday) groups.get('Yesterday').push(session);
     else if (t >= week) groups.get('This Week').push(session);
