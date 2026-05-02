@@ -51,10 +51,36 @@ function isChatTrashOverlayOpen() {
 
 function sortSessionsInPlace() {
   sessions.sort((a, b) => {
-    const aTime = a.history?.at(-1)?.timestamp || a.created || 0;
-    const bTime = b.history?.at(-1)?.timestamp || b.created || 0;
+    const aTime = getSessionActivityTimestamp(a);
+    const bTime = getSessionActivityTimestamp(b);
     return bTime - aTime;
   });
+}
+
+function getSessionActivityTimestamp(session) {
+  const fallback = session?.created || 0;
+  const history = Array.isArray(session?.history) ? session.history : [];
+  if (!history.length) return fallback;
+
+  // Tree history ([rootMessage]) - follow active branch to newest visible message.
+  if (history.length === 1 && Array.isArray(history[0]?.versions)) {
+    let node = history[0];
+    let latest = Number.isFinite(node?.timestamp) ? node.timestamp : fallback;
+    while (node) {
+      if (Number.isFinite(node?.timestamp)) latest = Math.max(latest, node.timestamp);
+      const versions = Array.isArray(node?.versions) ? node.versions : [];
+      const idx = Number.isInteger(node?.currentVersionIdx)
+        ? Math.max(0, Math.min(node.currentVersionIdx, versions.length - 1))
+        : 0;
+      const tail = Array.isArray(versions[idx]?.tail) ? versions[idx].tail : [];
+      if (!tail.length) break;
+      node = tail[tail.length - 1];
+    }
+    return latest || fallback;
+  }
+
+  const last = history.at(-1);
+  return Number.isFinite(last?.timestamp) ? last.timestamp : fallback;
 }
 
 function syncSessionList(nextSessions = []) {
@@ -124,7 +150,7 @@ on('auth:guestOk', (msg) => {
 on('chat:done', (msg) => {
   const session = sessions.find((entry) => entry.id === msg.sessionId);
   if (!session) return;
-  session.history = msg.history;
+  session.history = Array.isArray(msg.history) ? msg.history : (msg.flatHistory || session.history || []);
   if (msg.name) session.name = msg.name;
   sortSessionsInPlace();
   renderChatSidebar();

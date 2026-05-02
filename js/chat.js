@@ -47,8 +47,8 @@ on('chat:error',            (msg) => { if (msg.sessionId === activeSessionId) on
 on('chat:asset',            (msg) => { if (msg.sessionId === activeSessionId) appendAsset(msg.asset); });
 on('chat:toolCall',         (msg) => { if (msg.sessionId === activeSessionId) handleLiveToolCall(msg.call); });
 on('chat:draftEdited',      (msg) => { if (msg.sessionId === activeSessionId) onDraftEdited(msg); });
-on('chat:messageEdited',    (msg) => { if (msg.sessionId === activeSessionId) renderHistory(msg.history); });
-on('chat:versionSelected',  (msg) => { if (msg.sessionId === activeSessionId) renderHistory(msg.history); });
+on('chat:messageEdited',    (msg) => { if (msg.sessionId === activeSessionId) renderHistory(msg.flatHistory || msg.history); });
+on('chat:versionSelected',  (msg) => { if (msg.sessionId === activeSessionId) renderHistory(msg.flatHistory || msg.history); });
 
 // Reconnect: reload current session instead of resetting to welcome
 on('ws:connected', () => {
@@ -124,10 +124,7 @@ function extractFlatHistoryFromTree(rootMessage) {
 export function renderSession(session) {
   if (!session || !session.history?.length) { showWelcome(); return; }
   showChat();
-  const flatHistory = session.history[0]?.versions
-    ? extractFlatHistoryFromTree(session.history[0])
-    : session.history;
-  renderHistory(flatHistory);
+  renderHistory(session.history);
 }
 
 function showWelcome() {
@@ -146,7 +143,7 @@ function showChat() {
 
 export function renderHistory(history) {
   showChat();
-  currentHistory = Array.isArray(history) ? history : [];
+  currentHistory = normalizeIncomingHistory(history);
   const box = document.getElementById('chat-messages');
   if (!box) return;
   box.innerHTML = '';
@@ -181,6 +178,14 @@ export function renderHistory(history) {
   }
 
   if (autoScroll) box.scrollTop = box.scrollHeight;
+}
+
+function normalizeIncomingHistory(history) {
+  if (!Array.isArray(history)) return [];
+  if (history.length === 1 && history[0]?.versions) {
+    return extractFlatHistoryFromTree(history[0]);
+  }
+  return history;
 }
 
 function stripSessionTag(content) {
@@ -662,10 +667,7 @@ function continueIcon() {
 }
 
 function retryIcon() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M21 12a9 9 0 1 1-3-6.7"/>
-    <polyline points="21 3 21 9 15 9"/>
-  </svg>`;
+  return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15A9 9 0 1 1 23 10"/></svg>`;
 }
 
 function fileIcon() {
@@ -1318,8 +1320,8 @@ function onChatDone(msg) {
     streamingText = '';
     streamingDraftEdits = [];
     updateSendBtn(false);
-    if (msg.history) {
-      renderHistory(msg.history);
+    if (msg.flatHistory || msg.history) {
+      renderHistory(msg.flatHistory || msg.history);
     }
     pendingAssets = [];
   }
@@ -1342,8 +1344,8 @@ function onChatAborted(msg) {
       streamingBubble = null;
     }
     updateSendBtn(false);
-    if (msg.history) {
-      renderHistory(msg.history);
+    if (msg.flatHistory || msg.history) {
+      renderHistory(msg.flatHistory || msg.history);
     }
     pendingAssets = [];
     streamingDraftEdits = [];
@@ -1817,7 +1819,16 @@ function textWithBullets(text) {
 }
 
 function processDisplay(text) {
-  return text;
+  let result = '', i = 0;
+  while (i < text.length) {
+    const start = text.indexOf('```svg', i);
+    if (start === -1) { result += text.slice(i); break; }
+    result += text.slice(i, start) + '[SVG Image]';
+    const end = text.indexOf('```', start + 6);
+    if (end === -1) break;
+    i = end + 3;
+  }
+  return result;
 }
 
 function updateSendBtn(streaming) {
