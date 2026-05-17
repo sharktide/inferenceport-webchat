@@ -95,7 +95,7 @@ export async function loginWithOAuth(provider) {
   });
   if (error) throw new Error(error.message || 'OAuth sign in failed');
   if (!data?.url) throw new Error('Unable to start OAuth flow');
-  window.open(data.url, '_blank', 'width=520,height=640,noopener,noreferrer');
+  window.open(data.url, '_blank', 'width=520,height=640');
 }
 
 export async function logout() {
