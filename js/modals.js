@@ -2,6 +2,9 @@
 import { send, on } from './ws.js';
 import { escHtml } from './ui.js';
 import { isAuthenticated, loginWithEmail, signUpWithEmail, loginWithOAuth, logout, currentUser, userProfile, userSettings } from './auth.js';
+import { getSupabaseClient } from './supabase.js';
+
+const supabase = getSupabaseClient();
 
 // ── Modal stack support ───────────────────────────────────────────────────
 // Primary modal uses #modal-overlay / #modal-box.
@@ -13,6 +16,7 @@ function getBox()     { return box     || (box     = document.getElementById('mo
 
 let secondaryOverlay = null;
 let modalCleanup = null;
+let secondaryModalCleanup = null;
 
 export function openModal(html, opts = {}) {
   const o = getOverlay(), b = getBox();
@@ -55,7 +59,10 @@ export function openSecondaryModal(html, opts = {}) {
   secondaryOverlay.appendChild(secBox);
   document.body.appendChild(secondaryOverlay);
 
-  if (opts.onOpen) opts.onOpen(secBox);
+  const cleanup = opts.onOpen?.(secBox);
+  secondaryModalCleanup = typeof cleanup === 'function'
+    ? cleanup
+    : (typeof opts.onClose === 'function' ? opts.onClose : null);
 
   secondaryOverlay.onclick = (e) => {
     if (e.target === secondaryOverlay) closeSecondaryModal();
@@ -64,6 +71,8 @@ export function openSecondaryModal(html, opts = {}) {
 
 export function closeSecondaryModal() {
   if (secondaryOverlay) {
+    secondaryModalCleanup?.();
+    secondaryModalCleanup = null;
     secondaryOverlay.remove();
     secondaryOverlay = null;
   }
@@ -126,14 +135,16 @@ export function openTextPromptModal({
   label = 'Value',
   placeholder = '',
   value = '',
+  inputType = 'text',
   confirmLabel = 'Save',
   cancelLabel = 'Cancel',
   multiline = false,
   onSubmit,
+  onCancel,
 }) {
   const fieldHtml = multiline
     ? `<textarea class="form-input prompt-textarea" id="prompt-input" placeholder="${escHtml(placeholder)}">${escHtml(value)}</textarea>`
-    : `<input class="form-input" id="prompt-input" value="${escHtml(value)}" placeholder="${escHtml(placeholder)}" />`;
+    : `<input class="form-input" id="prompt-input" type="${escHtml(inputType)}" value="${escHtml(value)}" placeholder="${escHtml(placeholder)}" />`;
 
   const layer = openLayeredModal(`
     <div class="modal-header">
@@ -152,15 +163,26 @@ export function openTextPromptModal({
     </div>
   `, {
     onOpen(b) {
-      const close = () => closeLayeredModal(layer);
+      let submitted = false;
+      let cancelled = false;
+      const close = ({ canceled = false } = {}) => {
+        if (canceled && !submitted && !cancelled) {
+          cancelled = true;
+          onCancel?.();
+        }
+        closeLayeredModal(layer);
+      };
       const input = b.querySelector('#prompt-input');
       const submit = async () => {
         const nextValue = input?.value ?? '';
         const shouldClose = await onSubmit?.(nextValue);
-        if (shouldClose !== false) close();
+        if (shouldClose !== false) {
+          submitted = true;
+          close();
+        }
       };
-      b.querySelector('#prompt-close-btn')?.addEventListener('click', close);
-      b.querySelector('#prompt-cancel-btn')?.addEventListener('click', close);
+      b.querySelector('#prompt-close-btn')?.addEventListener('click', () => close({ canceled: true }));
+      b.querySelector('#prompt-cancel-btn')?.addEventListener('click', () => close({ canceled: true }));
       b.querySelector('#prompt-submit-btn')?.addEventListener('click', submit);
       input?.addEventListener('keydown', (event) => {
         if (!multiline && event.key === 'Enter') {
@@ -175,6 +197,12 @@ export function openTextPromptModal({
           input.setSelectionRange(end, end);
         }
       }, 0);
+      return () => {
+        if (!submitted && !cancelled) {
+          cancelled = true;
+          onCancel?.();
+        }
+      };
     }
   });
 }
@@ -280,8 +308,30 @@ export function openAuthModal(initialTab = 'signin') {
         }
       });
 
-      b.querySelector('#github-btn').addEventListener('click', () => { loginWithOAuth('github'); closeModal(); });
-      b.querySelector('#google-btn').addEventListener('click', () => { loginWithOAuth('google'); closeModal(); });
+      b.querySelector('#github-btn').addEventListener('click', async () => {
+        try {
+          await loginWithOAuth('github');
+          closeModal();
+        } catch (e) {
+          const errEl = b.querySelector('#signin-error');
+          if (errEl) {
+            errEl.textContent = e.message || 'Unable to start GitHub sign in';
+            errEl.style.display = '';
+          }
+        }
+      });
+      b.querySelector('#google-btn').addEventListener('click', async () => {
+        try {
+          await loginWithOAuth('google');
+          closeModal();
+        } catch (e) {
+          const errEl = b.querySelector('#signin-error');
+          if (errEl) {
+            errEl.textContent = e.message || 'Unable to start Google sign in';
+            errEl.style.display = '';
+          }
+        }
+      });
       b.querySelector('#forgot-pw').addEventListener('click', () => openForgotPasswordModal());
 
       // Enter key
@@ -321,13 +371,9 @@ function openForgotPasswordModal() {
       b.querySelector('#reset-submit').addEventListener('click', async () => {
         const email = b.querySelector('#reset-email').value.trim();
         const msgEl = b.querySelector('#reset-msg');
-        const SUPABASE_URL = 'https://dpixehhdbtzsbckfektd.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwaXhlaGhkYnR6c2Jja2Zla3RkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNDI0MjcsImV4cCI6MjA3NjcxODQyN30.nR1KCSRQj1E_evQWnE2VaZzg7PgLp2kqt4eDKP2PkpE';
         try {
-          await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
-            method: 'POST', headers: { 'Content-Type':'application/json','apikey':SUPABASE_KEY },
-            body: JSON.stringify({ email }),
-          });
+          const { error } = await supabase.auth.resetPasswordForEmail(email);
+          if (error) throw error;
           msgEl.textContent = 'Reset link sent. Check your email.';
           msgEl.style.color = 'var(--plan-core)'; msgEl.style.display = '';
         } catch { msgEl.textContent = 'Error. Try again.'; msgEl.style.display = ''; }

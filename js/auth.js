@@ -1,19 +1,22 @@
 // auth.js - Authentication state and Supabase integration
 import { send, on } from './ws.js';
-
-const SUPABASE_URL      = 'https://dpixehhdbtzsbckfektd.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwaXhlaGhkYnR6c2Jja2Zla3RkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNDI0MjcsImV4cCI6MjA3NjcxODQyN30.nR1KCSRQj1E_evQWnE2VaZzg7PgLp2kqt4eDKP2PkpE';
+import { getSupabaseClient } from './supabase.js';
 
 const AUTH_KEY      = 'ipai_auth_v1';
 const TEMP_ID_KEY   = 'ipai_temp_id';
 const CLIENT_ID_KEY = 'ipai_client_id';
-// Key written by oauth-callback.html so the main tab can pick it up
-const OAUTH_PENDING_KEY = 'ipai_oauth_pending';
+const OAUTH_CHANNEL = 'ipai_oauth_channel';
 
 export let currentUser      = null;
 export let userProfile      = null;
 export let userSettings     = null;
 export let subscriptionInfo = null;
+const supabase = getSupabaseClient();
+const oauthChannel = typeof BroadcastChannel !== 'undefined'
+  ? new BroadcastChannel(OAUTH_CHANNEL)
+  : null;
+let lastOAuthToken = '';
+let lastOAuthTokenAt = 0;
 
 const authListeners = new Set();
 
@@ -23,6 +26,8 @@ export function isAuthenticated() { return !!currentUser; }
 function notifyListeners() {
   authListeners.forEach(fn => fn({ currentUser, userProfile, userSettings }));
 }
+
+purgeLegacySensitiveLocalStorage();
 
 export function getClientId() {
   let id = localStorage.getItem(CLIENT_ID_KEY);
@@ -34,51 +39,44 @@ export function getTempId() {
   if (!id) { id = crypto.randomUUID(); localStorage.setItem(TEMP_ID_KEY, id); }
   return id;
 }
-export function saveAuth(data)  { localStorage.setItem(AUTH_KEY, JSON.stringify(data)); }
-export function loadAuth()      { try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch { return null; } }
-export function clearAuth()     { localStorage.removeItem(AUTH_KEY); }
+export function saveAuth(data)  { try { sessionStorage.setItem(AUTH_KEY, JSON.stringify(data)); } catch {} }
+export function loadAuth()      { try { return JSON.parse(sessionStorage.getItem(AUTH_KEY) || 'null'); } catch { return null; } }
+export function clearAuth()     { try { sessionStorage.removeItem(AUTH_KEY); } catch {} }
 
-// ── Supabase REST helpers ─────────────────────────────────────────────────
-
-async function supabaseFetch(path, options = {}) {
-  const token = options._useToken || SUPABASE_ANON_KEY;
-  delete options._useToken;
-  const res = await fetch(`${SUPABASE_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${token}`,
-      ...(options.headers || {}),
-    },
-  });
-  return res.json();
+function purgeLegacySensitiveLocalStorage() {
+  try {
+    localStorage.removeItem(AUTH_KEY);
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      // Supabase auth tokens created by older clients.
+      if (/^sb-.*-auth-token$/i.test(key) || /^supabase\.auth\.token$/i.test(key)) {
+        keys.push(key);
+      }
+    }
+    keys.forEach((key) => localStorage.removeItem(key));
+  } catch {}
 }
 
 export async function loginWithEmail(email, password) {
-  const data = await supabaseFetch('/auth/v1/token?grant_type=password', {
-    method: 'POST', body: JSON.stringify({ email, password }),
-  });
-  if (data.error) throw new Error(data.error_description || data.error);
-  await handleSupabaseSession(data, { showWelcome: true });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw new Error(error.message || 'Sign in failed');
+  if (!data?.session?.access_token) throw new Error('No access token');
+  await handleSupabaseSession(data.session, { showWelcome: true });
   return data;
 }
 
 export async function signUpWithEmail(email, password) {
-  const data = await supabaseFetch('/auth/v1/signup', {
-    method: 'POST', body: JSON.stringify({ email, password }),
-  });
-  if (data.error) throw new Error(data.error_description || data.error);
-  if (data.access_token) await handleSupabaseSession(data, { showWelcome: true });
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) throw new Error(error.message || 'Sign up failed');
+  if (data?.session?.access_token) await handleSupabaseSession(data.session, { showWelcome: true });
   return data;
 }
 
 /**
  * OAuth login via popup.
- * The popup writes the tokens to localStorage under OAUTH_PENDING_KEY,
- * then closes itself.  This tab listens for the storage event and picks
- * them up — no postMessage needed (works even when opener is null, e.g.
- * on some mobile browsers or strict sandboxes).
+ * The popup posts tokens back via BroadcastChannel and postMessage.
  */
 export async function loginWithOAuth(provider) {
   const isChatRoute = location.pathname.startsWith('/chat');
@@ -87,25 +85,24 @@ export async function loginWithOAuth(provider) {
     ? '/chat/oauth-callback.html'
     : '/oauth-callback.html';
 
-  const redirectTo = encodeURIComponent(`${location.origin}${callbackPath}`);
-
-  const url = `${SUPABASE_URL}/auth/v1/authorize?provider=${provider}&redirect_to=${redirectTo}`;
-  window.open(url, '_blank', 'width=520,height=640,noopener,noreferrer');
-  // The storage listener below (window.addEventListener('storage', ...))
-  // will fire when the popup writes OAUTH_PENDING_KEY and complete the login.
+  const redirectTo = `${location.origin}${callbackPath}`;
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo,
+      skipBrowserRedirect: true,
+    },
+  });
+  if (error) throw new Error(error.message || 'OAuth sign in failed');
+  if (!data?.url) throw new Error('Unable to start OAuth flow');
+  window.open(data.url, '_blank', 'width=520,height=640,noopener,noreferrer');
 }
 
 export async function logout() {
-  const auth = loadAuth();
-  if (auth?.access_token) {
-    try {
-      await supabaseFetch('/auth/v1/logout', {
-        method: 'POST', _useToken: auth.access_token,
-      });
-    } catch {}
-  }
+  try { await supabase.auth.signOut(); } catch {}
   send({ type: 'auth:logout' });
   clearAuth();
+  purgeLegacySensitiveLocalStorage();
   currentUser = null; userProfile = null; userSettings = null; subscriptionInfo = null;
   notifyListeners();
   updateSidebarProfile();
@@ -116,16 +113,22 @@ export async function logout() {
 // ── Session handling ──────────────────────────────────────────────────────
 
 async function handleSupabaseSession(data, { showWelcome = false } = {}) {
-  console.log('[Frontend Auth] handleSupabaseSession called with token:', data.access_token?.slice(0, 20) + '...');
-  if (!data.access_token) throw new Error('No access token');
+  const session = await normalizeSessionPayload(data);
+  console.log('[Frontend Auth] handleSupabaseSession called with token:', session?.access_token?.slice(0, 20) + '...');
+  if (!session?.access_token) throw new Error('No access token');
   const existingAuth = loadAuth() || {};
-  saveAuth({ ...existingAuth, access_token: data.access_token, refresh_token: data.refresh_token, user: data.user });
+  saveAuth({
+    ...existingAuth,
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+    user: session.user || existingAuth.user || null,
+  });
 
   return new Promise((resolve, reject) => {
     const tempId   = getTempId();
     const clientId = getClientId();
-    console.log('[Frontend Auth] Sending auth:login to backend with token:', data.access_token?.slice(0, 20) + '...');
-    send({ type: 'auth:login', accessToken: data.access_token, refreshToken: data.refresh_token,
+    console.log('[Frontend Auth] Sending auth:login to backend with token:', session.access_token?.slice(0, 20) + '...');
+    send({ type: 'auth:login', accessToken: session.access_token, refreshToken: session.refresh_token,
       tempId, clientId, deviceToken: existingAuth.deviceToken || null });
 
     const unsubOk  = on('auth:ok',    (msg) => {
@@ -145,6 +148,21 @@ async function handleSupabaseSession(data, { showWelcome = false } = {}) {
 
     setTimeout(() => { unsubOk(); unsubErr(); reject(new Error('Auth timeout')); }, 12000);
   });
+}
+
+async function normalizeSessionPayload(input) {
+  if (!input) return null;
+  if (input.session?.access_token) return input.session;
+  if (input.access_token) {
+    if (input.user) return input;
+    try {
+      const { data } = await supabase.auth.getUser(input.access_token);
+      return { ...input, user: data?.user || null };
+    } catch {
+      return input;
+    }
+  }
+  return null;
 }
 
 function applyAuthOk(msg) {
@@ -220,27 +238,17 @@ on('ws:connected', async () => {
   }
 });
 
-// ── OAuth: localStorage-based token pickup ────────────────────────────────
-// Works for both popup and redirect flows.
-// The oauth-callback.html page writes { access_token, refresh_token } to
-// localStorage[OAUTH_PENDING_KEY] then closes/redirects.  The storage event
-// fires in all other tabs from the same origin.
-
-window.addEventListener('storage', async (e) => {
-  if (e.key !== OAUTH_PENDING_KEY || !e.newValue) return;
-  console.log('[Frontend Auth] OAuth pending key detected in localStorage');
-  // Consume immediately so other tabs don't also try to log in
-  localStorage.removeItem(OAUTH_PENDING_KEY);
-  let tokens;
-  try { tokens = JSON.parse(e.newValue); } catch { 
-    console.error('[Frontend Auth] Failed to parse OAuth tokens');
-    return;
-  }
+async function processOAuthTokens(tokens, source = 'unknown') {
   if (!tokens?.access_token) {
-    console.warn('[Frontend Auth] No access token in OAuth response');
+    console.warn('[Frontend Auth] No access token in OAuth response from', source);
     return;
   }
-  console.log('[Frontend Auth] Processing OAuth tokens:', tokens.access_token?.slice(0, 20) + '...');
+  if (tokens.access_token === lastOAuthToken && (Date.now() - lastOAuthTokenAt) < 3000) {
+    return;
+  }
+  lastOAuthToken = tokens.access_token;
+  lastOAuthTokenAt = Date.now();
+  console.log('[Frontend Auth] Processing OAuth tokens from', source, tokens.access_token?.slice(0, 20) + '...');
   try {
     await handleSupabaseSession(tokens, { showWelcome: true });
     import('./ui.js').then(({ showNotification }) =>
@@ -250,6 +258,11 @@ window.addEventListener('storage', async (e) => {
     import('./ui.js').then(({ showNotification }) =>
       showNotification({ type: 'error', message: `Sign-in failed: ${err.message}`, duration: 4000 }));
   }
+}
+
+oauthChannel?.addEventListener('message', (event) => {
+  if (event?.data?.type !== 'oauth:callback') return;
+  processOAuthTokens(event.data, 'broadcast-channel').catch(() => {});
 });
 
 // Also handle same-tab redirect flow (no popup) — ?oauth=1&t=TOKEN&r=REFRESH
@@ -259,7 +272,8 @@ window.addEventListener('storage', async (e) => {
   console.log('[Frontend Auth] Checking for OAuth redirect params:', t ? 'found token' : 'no token');
   if (params.get('oauth') === '1' && t) {
     console.log('[Frontend Auth] Processing OAuth redirect with token:', t.slice(0, 20) + '...');
-    history.replaceState({}, '', '/');
+    const cleanPath = location.pathname.startsWith('/chat') ? '/chat/' : '/';
+    history.replaceState({}, '', cleanPath);
     handleSupabaseSession({ access_token: t, refresh_token: r || '' }, { showWelcome: true }).catch((err) => {
       console.error('[Frontend Auth] OAuth redirect failed:', err);
     });
@@ -271,18 +285,7 @@ window.addEventListener('message', async (e) => {
   if (e.origin !== location.origin) return;
   if (e.data?.type !== 'oauth:callback') return;
   console.log('[Frontend Auth] postMessage oauth:callback received');
-  const { access_token, refresh_token } = e.data;
-  if (!access_token) {
-    console.warn('[Frontend Auth] No access_token in postMessage oauth:callback');
-    return;
-  }
-  console.log('[Frontend Auth] Processing postMessage tokens:', access_token?.slice(0, 20) + '...');
-  try { await handleSupabaseSession({ access_token, refresh_token }, { showWelcome: true }); }
-  catch (err) {
-    console.error('[Frontend Auth] postMessage sign-in error:', err);
-    import('./ui.js').then(({ showNotification }) =>
-      showNotification({ type: 'error', message: `Sign-in failed: ${err.message}`, duration: 4000 }));
-  }
+  processOAuthTokens(e.data, 'postMessage').catch(() => {});
 });
 
 // ── Sidebar profile ───────────────────────────────────────────────────────

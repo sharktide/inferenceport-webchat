@@ -37,31 +37,35 @@
     if (tokens.error) {
       msgEl.textContent = 'Sign-in error: ' + (tokens.error_desc || tokens.error);
     } else if (tokens.access_token) {
-      // ── Primary path: write to localStorage so the main tab picks it up
-      // via a 'storage' event listener — works even when window.opener is null
-      // (strict popup policies, mobile browsers, etc.).
-      const payload = JSON.stringify({
-        access_token:  tokens.access_token,
+      const payload = {
+        type: 'oauth:callback',
+        access_token: tokens.access_token,
         refresh_token: tokens.refresh_token || '',
-      });
-      localStorage.setItem('ipai_oauth_pending', payload);
+      };
+
+      // Preferred cross-window channel (same-origin tabs/popups).
+      try {
+        const bc = new BroadcastChannel('ipai_oauth_channel');
+        bc.postMessage(payload);
+        bc.close();
+      } catch (_) {}
 
       // ── Also try postMessage to opener for fastest possible handoff ──────
       if (window.opener && !window.opener.closed) {
         try {
-          window.opener.postMessage({
-            type:          'oauth:callback',
-            access_token:  tokens.access_token,
-            refresh_token: tokens.refresh_token,
-          }, location.origin);
-        } catch (_) { /* cross-origin opener — storage event is enough */ }
+          window.opener.postMessage(payload, location.origin);
+        } catch (_) {}
+        msgEl.textContent = 'Sign-in complete! Closing…';
+        // Give message channels a moment to propagate, then close the popup.
+        setTimeout(() => {
+          try { window.close(); } catch (_) { /* ignore */ }
+        }, 300);
+      } else {
+        const base = location.pathname.startsWith('/chat/') ? '/chat/' : '/';
+        const url = `${base}?oauth=1&t=${encodeURIComponent(tokens.access_token)}&r=${encodeURIComponent(tokens.refresh_token || '')}`;
+        msgEl.textContent = 'Sign-in complete! Redirecting…';
+        location.replace(url);
       }
-
-      msgEl.textContent = 'Sign-in complete! Closing…';
-      // Give localStorage a moment to propagate, then try to close the popup.
-      setTimeout(() => {
-        try { window.close(); } catch (_) { /* ignore */ }
-      }, 300);
     } else {
       msgEl.textContent = 'No token received. You can close this window.';
     }

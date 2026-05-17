@@ -78,7 +78,9 @@ export function showContextMenu(x, y, items, options = {}) {
     if (item.icon) {
       const ic = document.createElement('span');
       ic.className = 'context-item-icon';
-      if (typeof item.icon === 'string' && item.icon.trim().startsWith('<svg')) ic.innerHTML = item.icon;
+      if (typeof item.icon === 'string' && item.icon.trim().startsWith('<svg')) {
+        ic.innerHTML = sanitizeInlineSvgMarkup(item.icon);
+      }
       else ic.textContent = item.icon;
       el.appendChild(ic);
     }
@@ -199,6 +201,26 @@ const CODE_LANG_ALIASES = {
   yml: 'yaml',
   zsh: 'bash',
 };
+const SVG_SANITIZE_CONFIG = {
+  USE_PROFILES: { svg: true, svgFilters: true },
+  FORBID_TAGS: ['script', 'foreignObject'],
+  FORBID_ATTR: ['onload', 'onerror', 'onclick', 'onmouseover', 'onfocus'],
+};
+
+function sanitizeInlineSvgMarkup(svgMarkup) {
+  const source = String(svgMarkup || '').trim();
+  if (!source) return '';
+  const clean = window.DOMPurify?.sanitize(source, SVG_SANITIZE_CONFIG) || '';
+  if (!clean.toLowerCase().includes('<svg')) return '';
+  return clean;
+}
+
+function sanitizeSvgString(svgSource) {
+  const source = String(svgSource || '').trim();
+  if (!source) return '';
+  const clean = sanitizeInlineSvgMarkup(source);
+  return clean || '';
+}
 
 function isCssColorValue(token) {
   if (!token) return false;
@@ -326,9 +348,10 @@ function buildMarkdownOptions() {
     const codeClass = `${highlightedCode ? 'hljs ' : ''}language-${displayLang}`;
 
     if (displayLang === 'svg') {
-      const encodedSvg = encodeURIComponent(rawCode);
+      const cleanSvg = sanitizeSvgString(rawCode);
+      const encodedSvg = encodeURIComponent(cleanSvg || '');
       return `<div class="svg-render-block" data-svg="${escAttr(encodedSvg)}">
-        <img src="data:image/svg+xml,${encodeURIComponent(rawCode)}" style="max-width:100%;cursor:pointer;" alt="SVG">
+        <img src="data:image/svg+xml,${encodedSvg}" style="max-width:100%;cursor:pointer;" alt="SVG">
       </div>`;
     }
     return `<div class="code-block">
@@ -549,7 +572,34 @@ export function sanitizeEditableHtml(html) {
     ALLOWED_ATTR: ['href','src','alt','title','class','data-color','target','rel','style','open','align','type','aria-label','aria-hidden'],
     ALLOW_DATA_ATTR: true,
     FORBID_TAGS: ['script', 'iframe', 'form', 'object', 'embed', 'meta', 'link'],
+    FORBID_ATTR: ['onload', 'onerror', 'onclick', 'onmouseover', 'onfocus'],
   }) || '<p></p>';
+}
+
+export function renderMathInContainer(container) {
+  if (!container || typeof renderMathInElement === 'undefined') return;
+  try {
+    renderMathInElement(container, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '\\begin{equation}', right: '\\end{equation}', display: true },
+        { left: '\\begin{equation*}', right: '\\end{equation*}', display: true },
+        { left: '\\begin{align}', right: '\\end{align}', display: true },
+        { left: '\\begin{align*}', right: '\\end{align*}', display: true },
+        { left: '\\begin{gather}', right: '\\end{gather}', display: true },
+        { left: '\\begin{gather*}', right: '\\end{gather*}', display: true },
+        { left: '\\begin{multline}', right: '\\end{multline}', display: true },
+        { left: '\\begin{multline*}', right: '\\end{multline*}', display: true },
+      ],
+      throwOnError: false,
+      strict: 'ignore',
+      trust: false,
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+    });
+  } catch {}
 }
 
 export function renderMarkdown(text) {
@@ -568,6 +618,7 @@ export function renderMarkdown(text) {
         'target','rel','style','open','align','type','aria-label','aria-hidden','viewBox','width','height',
         'focusable','x','y','rx','ry','fill','stroke','stroke-width'],
       ALLOW_DATA_ATTR: true,
+      FORBID_ATTR: ['onload', 'onerror', 'onclick', 'onmouseover', 'onfocus'],
     });
     return clean.replace(/href="([^"]+)"/g, (_match, href) => `href="${escAttr(sanitizeLinkHref(href))}"`);
   } catch (e) {
@@ -659,8 +710,10 @@ function openSvgPanel(svgCode) {
   const closeBtn  = document.getElementById('svg-close-btn');
 
   let showingXml = false;
+  const safeSvg = sanitizeSvgString(svgCode);
   const renderImg = () => {
-    content.innerHTML = `<img src="data:image/svg+xml,${encodeURIComponent(svgCode)}" style="max-width:100%;" alt="SVG">`;
+    const encoded = encodeURIComponent(safeSvg || '');
+    content.innerHTML = `<img src="data:image/svg+xml,${encoded}" style="max-width:100%;" alt="SVG">`;
   };
   renderImg();
 
@@ -668,7 +721,7 @@ function openSvgPanel(svgCode) {
     showingXml = !showingXml;
     toggleBtn.textContent = showingXml ? 'Image' : 'XML';
     if (showingXml) {
-      content.innerHTML = `<pre style="font-size:12px;white-space:pre-wrap;word-break:break-all;padding:8px;background:var(--bg-raised);border-radius:6px;">${escHtml(svgCode)}</pre>`;
+      content.innerHTML = `<pre style="font-size:12px;white-space:pre-wrap;word-break:break-all;padding:8px;background:var(--bg-raised);border-radius:6px;">${escHtml(safeSvg)}</pre>`;
     } else renderImg();
   };
   closeBtn.onclick = () => panel.remove();
@@ -705,4 +758,5 @@ window.ui = {
   renderMarkdown,
   hydrateHtmlSandboxPlaceholders,
   sanitizeEditableHtml,
+  renderMathInContainer,
 };

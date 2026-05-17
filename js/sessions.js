@@ -43,6 +43,18 @@ function hasSession(id) {
   return !!id && sessions.some((session) => session.id === id);
 }
 
+function removeSessionsByIds(ids = []) {
+  if (!Array.isArray(ids) || !ids.length) return;
+  const removed = new Set(ids);
+  const wasCurrentRemoved = removed.has(currentSessionId);
+  sessions = sessions.filter((session) => !removed.has(session.id));
+  if (wasCurrentRemoved || !hasSession(currentSessionId)) {
+    currentSessionId = null;
+    notify('switched', null);
+  }
+  renderChatSidebar();
+}
+
 function isChatTrashOverlayOpen() {
   const overlay = document.getElementById('sidebar-trash-overlay');
   const host = document.getElementById('sidebar-sessions');
@@ -128,14 +140,12 @@ on('sessions:deleted', (msg) => {
     currentSessionId = null;
     notify('switched', null);
   }
-  requestDeletedChats();
   renderChatSidebar();
 });
 
 on('sessions:deletedAll', () => {
   sessions = [];
   currentSessionId = null;
-  requestDeletedChats();
   renderChatSidebar();
   notify('switched', null);
 });
@@ -155,12 +165,10 @@ on('sessions:data', (msg) => {
 
 on('auth:ok', (msg) => {
   syncSessionList(msg.sessions || []);
-  requestDeletedChats();
 });
 
 on('auth:guestOk', (msg) => {
   syncSessionList(msg.sessions || []);
-  requestDeletedChats();
 });
 
 on('chat:done', (msg) => {
@@ -199,6 +207,7 @@ on('trash:chats:restored', (msg) => {
 });
 
 on('trash:chats:deletedForever', (msg) => {
+  removeSessionsByIds(msg.ids || []);
   const removed = new Set(msg.ids || []);
   deletedChats = deletedChats.filter((chat) => !removed.has(chat.id));
   for (const id of removed) deletedSelection.delete(id);
@@ -229,21 +238,29 @@ export function switchSession(id) {
 
 export function deleteSession(id) {
   openConfirmModal({
-    title: 'Move Chat To Recently Deleted',
-    message: 'This chat will stay in Recently Deleted for 30 days unless you remove it permanently.',
-    confirmLabel: 'Move to Recently Deleted',
+    title: 'Delete Chat Permanently',
+    message: 'Delete this chat permanently? This cannot be undone.',
+    confirmLabel: 'Delete Chat',
     danger: true,
-    onConfirm: () => send({ type: 'sessions:delete', sessionId: id }),
+    onConfirm: () => {
+      removeSessionsByIds([id]);
+      send({ type: 'trash:chats:deleteForever', ids: [id] });
+    },
   });
 }
 
 export function deleteAllSessions() {
+  const ids = sessions.map((session) => session.id).filter(Boolean);
+  if (!ids.length) return;
   openConfirmModal({
-    title: 'Move All Chats',
-    message: 'Move all chats to Recently Deleted? You can restore them for 30 days.',
-    confirmLabel: 'Move All Chats',
+    title: 'Delete All Chats Permanently',
+    message: `Delete ${ids.length} chat${ids.length === 1 ? '' : 's'} permanently? This cannot be undone.`,
+    confirmLabel: 'Delete All Chats',
     danger: true,
-    onConfirm: () => send({ type: 'sessions:deleteAll' }),
+    onConfirm: () => {
+      removeSessionsByIds(ids);
+      send({ type: 'trash:chats:deleteForever', ids });
+    },
   });
 }
 
@@ -270,10 +287,17 @@ export function openChatTrashView() {
   const overlay = document.getElementById('sidebar-trash-overlay');
   if (!overlay) return;
   overlay.dataset.context = 'chats';
-  document.getElementById('sidebar-trash-title').textContent = 'Recently Deleted';
-  document.getElementById('sidebar-trash-subtitle').textContent = 'Chats waiting for permanent deletion';
-  renderChatTrashOverlay();
-  requestDeletedChats();
+  document.getElementById('sidebar-trash-title').textContent = 'Chat Deletion';
+  document.getElementById('sidebar-trash-subtitle').textContent = 'Chats are deleted permanently immediately';
+  const list = document.getElementById('sidebar-trash-list');
+  const bar = document.getElementById('sidebar-trash-selection-bar');
+  if (bar) {
+    bar.classList.add('hidden');
+    bar.innerHTML = '';
+  }
+  if (list) {
+    list.innerHTML = `<div class="sidebar-empty-state">No recently deleted chat storage is enabled.</div>`;
+  }
 }
 
 function renderChatSidebar() {
@@ -486,7 +510,7 @@ function openSessionMenu(e, id) {
     },
     { separator: true },
     {
-      label: 'Move to Recently Deleted',
+      label: 'Delete Chat',
       icon: trashIcon(),
       danger: true,
       onClick: () => deleteSession(id),

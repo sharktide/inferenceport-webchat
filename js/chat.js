@@ -3,7 +3,7 @@ import { send, on, off } from './ws.js';
 import { currentSessionId } from './sessions.js';
 import {
   renderMarkdown, attachCodeCopyListeners, attachSvgPanelListeners,
-  hydrateHtmlSandboxPlaceholders, escHtml, showContextMenu, showNotification, autoResize,
+  hydrateHtmlSandboxPlaceholders, escHtml, showContextMenu, showNotification, autoResize, renderMathInContainer,
 } from './ui.js';
 import { renderFilePreviewRow, clearFilePreviewRow } from './app.js';
 import { getMediaObjectUrl, downloadMediaItem, openMediaPicker, mediaItemToAttachment } from './media.js';
@@ -14,6 +14,7 @@ let streamingBubble  = null;
 let streamingText    = '';
 let streamingSessionId = null; // track which session is streaming
 let autoScroll       = true;
+const STREAM_AUTOSCROLL_RATIO = 0.95;
 let pendingAssets    = [];
 let streamingDraftEdits = [];
 let currentHistory   = [];
@@ -23,6 +24,28 @@ let streamingToolSegmentIndexById = new Map();
 let streamingStatusLabel = 'Thinking…';
 let streamingStartMeta = null;
 let streamingSourceHistory = [];
+
+function getChatScroller() {
+  return document.getElementById('chat-view');
+}
+
+function isNearBottom(ratio = STREAM_AUTOSCROLL_RATIO) {
+  const scroller = getChatScroller();
+  if (!scroller) return true;
+  const maxScrollTop = scroller.scrollHeight - scroller.clientHeight;
+  if (maxScrollTop <= 0) return true;
+  return (scroller.scrollTop / maxScrollTop) >= ratio;
+}
+
+function scrollToBottom() {
+  const scroller = getChatScroller();
+  if (scroller) {
+    scroller.scrollTop = scroller.scrollHeight;
+    return;
+  }
+  const fallback = document.getElementById('chat-messages');
+  if (fallback) fallback.scrollTop = fallback.scrollHeight;
+}
 
 const lastSessionRequests = new Map();
 const sessionErrorStates = new Map();
@@ -174,21 +197,9 @@ export function renderHistory(history) {
     box.appendChild(buildAssistantErrorGroup(sessionError));
   }
 
-  if (typeof renderMathInElement !== 'undefined') {
-    try {
-      renderMathInElement(box, {
-        delimiters: [
-          { left: '$$', right: '$$', display: true },
-          { left: '$',  right: '$',  display: false },
-          { left: '\\(', right: '\\)', display: false },
-          { left: '\\[', right: '\\]', display: true },
-        ],
-        throwOnError: false,
-      });
-    } catch {}
-  }
+  renderMathInContainer(box);
 
-  if (autoScroll) box.scrollTop = box.scrollHeight;
+  if (autoScroll) scrollToBottom();
 }
 
 function normalizeIncomingHistory(history) {
@@ -364,6 +375,7 @@ function buildAssistantTextSegment(text) {
   hydrateHtmlSandboxPlaceholders(segment);
   attachCodeCopyListeners(segment);
   attachSvgPanelListeners(segment);
+  renderMathInContainer(segment);
   return segment;
 }
 
@@ -1425,29 +1437,31 @@ function makeBtn(label, cls) {
 
 function onToken(token) {
   if (!streamingBubble) return;
+  const shouldStickToBottom = isStreaming && streamingSessionId === activeSessionId && isNearBottom();
   streamingText += token;
   streamingBubble.querySelector('.msg-thinking')?.remove();
   const displayText = stripSessionTag(processDisplay(streamingText));
   streamingBubble.innerHTML = renderMarkdown(displayText);
   attachCodeCopyListeners(streamingBubble);
   attachSvgPanelListeners(streamingBubble);
-  if (autoScroll) {
-    const box = document.getElementById('chat-messages');
-    if (box) box.scrollTop = box.scrollHeight;
-  }
+  renderMathInContainer(streamingBubble);
+  if (shouldStickToBottom) scrollToBottom();
 }
 
 function onDraftEdited(msg) {
   if (!streamingBubble) return;
+  const shouldStickToBottom = isStreaming && streamingSessionId === activeSessionId && isNearBottom();
   streamingText = msg.text || streamingText;
   if (msg.edit) streamingDraftEdits.push(msg.edit);
   const displayText = stripSessionTag(processDisplay(streamingText));
   streamingBubble.innerHTML = renderMarkdown(displayText);
   attachCodeCopyListeners(streamingBubble);
   attachSvgPanelListeners(streamingBubble);
+  renderMathInContainer(streamingBubble);
   if (streamingDraftEdits.length) {
     streamingBubble.appendChild(buildResponseEditSummary(streamingDraftEdits));
   }
+  if (shouldStickToBottom) scrollToBottom();
 }
 
 function onChatDone(msg) {
@@ -1540,7 +1554,7 @@ function appendAsset(asset) {
     name: asset.name,
   } : asset?.content);
   appendMediaMsg(box, asset.role, mediaContent);
-  if (autoScroll) box.scrollTop = box.scrollHeight;
+  if (autoScroll) scrollToBottom();
 }
 
 function cloneRequestPayload(payload) {
@@ -1679,6 +1693,7 @@ function renderStreamingBubble() {
     <span class="assistant-stream-label">${escHtml(streamingStatusLabel || 'Thinking')}</span>
   `;
   streamingBubble.appendChild(status);
+  renderMathInContainer(streamingBubble);
 }
 
 function clearStreamingState() {
@@ -1722,6 +1737,7 @@ function onChatStart(msg) {
     renderHistory(streamingSourceHistory.slice(0, Math.max(0, msg.messageIndex ?? 0)));
   }
 
+  const shouldStickToBottom = isNearBottom();
   const box = document.getElementById('chat-messages');
   if (!box) return;
 
@@ -1736,7 +1752,7 @@ function onChatStart(msg) {
 
   renderStreamingBubble();
   box.appendChild(streamingBubble);
-  if (autoScroll) box.scrollTop = box.scrollHeight;
+  if (shouldStickToBottom) scrollToBottom();
   updateSendBtn(true);
 }
 
@@ -1831,6 +1847,7 @@ function onChatError(msg) {
 
 function handleLiveToolCall(call) {
   if (!streamingBubble) return;
+  const shouldStickToBottom = isStreaming && streamingSessionId === activeSessionId && isNearBottom();
 
   const existingIndex = streamingToolSegmentIndexById.get(call.id);
   if (existingIndex == null) {
@@ -1856,11 +1873,7 @@ function handleLiveToolCall(call) {
 
   streamingStatusLabel = streamingToolStatus(call);
   renderStreamingBubble();
-
-  if (autoScroll) {
-    const box = document.getElementById('chat-messages');
-    if (box) box.scrollTop = box.scrollHeight;
-  }
+  if (shouldStickToBottom) scrollToBottom();
 }
 
 // ── Submit ────────────────────────────────────────────────────────────────
@@ -1900,8 +1913,9 @@ export function submitMessage(text, attachments = []) {
   if (box) {
     const wrap = makeWrap(-1);
     const bubble = document.createElement('div'); bubble.className = 'msg-user';
-    const displayText = textWithBullets(stripFileBlocks(text));
-    bubble.innerHTML = renderMarkdown(displayText);
+  const displayText = textWithBullets(stripFileBlocks(text));
+  bubble.innerHTML = renderMarkdown(displayText);
+  renderMathInContainer(bubble);
     images.forEach(img => {
       const el = document.createElement('img');
       el.src = `data:${img.mimeType};base64,${img.base64}`;
@@ -1916,7 +1930,7 @@ export function submitMessage(text, attachments = []) {
     }
     wrap.appendChild(bubble);
     box.appendChild(wrap);
-    if (autoScroll) box.scrollTop = box.scrollHeight;
+    if (autoScroll) scrollToBottom();
   }
 
   sendTrackedRequest({
@@ -2007,7 +2021,6 @@ function openImageModal(src) {
 }
 
 // Scroll tracking
-document.getElementById('chat-view')?.addEventListener('scroll', e => {
-  const el = e.target;
-  autoScroll = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+document.getElementById('chat-view')?.addEventListener('scroll', () => {
+  autoScroll = isNearBottom();
 }, true);

@@ -1,11 +1,15 @@
 // settings.js — Settings modal
 import { send, on, off } from './ws.js';
 import { openModal, closeModal, openDeviceSessionModal, openConfirmModal, openTextPromptModal } from './modals.js';
-import { isAuthenticated, currentUser, userProfile, userSettings, getClientId } from './auth.js';
+import { isAuthenticated, currentUser, userProfile, userSettings, getClientId, loadAuth, saveAuth } from './auth.js';
 import { deleteAllSessions } from './sessions.js';
 import { escHtml, showNotification, showContextMenu, sanitizeEditableHtml } from './ui.js';
+import { getSupabaseClient, SUPABASE_URL } from './supabase.js';
 
 const THEME_STORAGE_KEY = 'ipai_theme';
+const VERIFY_PASSWORD_URL = `${SUPABASE_URL}/functions/v1/verify_password`;
+const DELETE_ACCOUNT_URL = `${SUPABASE_URL}/functions/v1/delete_account`;
+const supabase = getSupabaseClient();
 
 let currentTheme = null;
 
@@ -806,6 +810,86 @@ function setupMemorySettings(b) {
   };
 }
 
+async function getAuthContextForDelete() {
+  const auth = loadAuth() || {};
+  const accessToken = auth.access_token || '';
+  if (!accessToken) {
+    throw new Error('You are not signed in.');
+  }
+
+  let provider =
+    auth?.user?.app_metadata?.provider
+    || auth?.user?.identities?.[0]?.provider
+    || 'email';
+  let email = auth?.user?.email || currentUser?.email || '';
+
+  try {
+    const { data, error } = await supabase.auth.getUser(accessToken);
+    if (!error && data?.user) {
+      const user = data.user;
+      provider =
+        user?.app_metadata?.provider
+        || user?.identities?.[0]?.provider
+        || provider;
+      email = user?.email || email;
+      auth.user = user;
+      saveAuth(auth);
+    }
+  } catch {}
+
+  return { accessToken, provider, email };
+}
+
+function promptForDeletePassword(email) {
+  return new Promise((resolve) => {
+    openTextPromptModal({
+      title: 'Verify Password',
+      label: email ? `Password for ${email}` : 'Current password',
+      placeholder: 'Enter your current password',
+      inputType: 'password',
+      confirmLabel: 'Verify',
+      cancelLabel: 'Cancel',
+      onSubmit: (value) => {
+        resolve((value || '').trim());
+        return true;
+      },
+      onCancel: () => {
+        resolve('');
+      },
+    });
+  });
+}
+
+async function verifyPasswordForDelete({ email, password, accessToken }) {
+  const response = await fetch(VERIFY_PASSWORD_URL, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ email, password }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || 'Password verification failed.');
+  }
+}
+
+async function deleteAccountWithSession(accessToken) {
+  const response = await fetch(DELETE_ACCOUNT_URL, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || 'Delete failed');
+  }
+}
+
 function setupAccountSettings(b) {
   const unsubs = [];
   const deviceState = {
@@ -888,17 +972,24 @@ function setupAccountSettings(b) {
       confirmLabel: 'Delete Account',
       danger: true,
       onConfirm: async () => {
-        const auth = JSON.parse(localStorage.getItem('ipai_auth_v1') || '{}');
-        if (!auth.access_token) return;
-        const res = await fetch('https://dpixehhdbtzsbckfektd.supabase.co/functions/v1/delete_account', {
-          method: 'POST', headers: { Authorization: `Bearer ${auth.access_token}` },
-        });
-        if (res.ok) {
+        try {
+          const { accessToken, provider, email } = await getAuthContextForDelete();
+          const isThirdParty = !!provider && provider !== 'email';
+
+          if (!isThirdParty) {
+            const password = await promptForDeletePassword(email);
+            if (!password) {
+              showNotification({ type: 'warning', message: 'Password verification was cancelled.', duration: 2600 });
+              return;
+            }
+            await verifyPasswordForDelete({ email, password, accessToken });
+          }
+
+          await deleteAccountWithSession(accessToken);
           closeModal();
           import('./auth.js').then(a => a.logout());
-        } else {
-          const d = await res.json().catch(() => ({}));
-          showNotification({ type: 'error', message: d.error || 'Delete failed', duration: 4000 });
+        } catch (err) {
+          showNotification({ type: 'error', message: err?.message || 'Delete failed', duration: 4000 });
         }
       },
     });

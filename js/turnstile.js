@@ -20,7 +20,8 @@
   // Helper: set local cookie so reload won't re-show challenge
   function setLocalTurnstileCookie() {
     try {
-      document.cookie = 'turnstile=1; path=/; max-age=' + (24 * 3600);
+      const secure = location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = 'turnstile=1; path=/; max-age=' + (24 * 3600) + '; SameSite=Lax' + secure;
     } catch (e) { /* ignore */ }
   }
 

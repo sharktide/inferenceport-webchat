@@ -424,12 +424,11 @@
 
       <script>
         (function () {
+          document.getElementById('tos-link').href = 'https://inference.js.org/security.html';
+          document.getElementById('privacy-link').href = 'https://inference.js.org/security.html';
+
           const isChatRoute = location.pathname.startsWith('/chat');
           const basePath = isChatRoute ? '/chat/' : '/';
-
-          document.getElementById('tos-link').href = basePath + 'terms.html';
-          document.getElementById('privacy-link').href = basePath + 'privacy.html';
-
           const feedbackLink = document.getElementById('feedback-link');
           feedbackLink.href = basePath + 'feedback.html';
 
