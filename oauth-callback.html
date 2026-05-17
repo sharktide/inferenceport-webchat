@@ -38,67 +38,72 @@
       <div class="spinner"></div>
       <p id="msg">Completing sign-in…</p>
     </div>
-    <script>
-      // ── Extract tokens from URL hash (Supabase implicit flow) or search params ──
-      function getTokens() {
-        const hash = new URLSearchParams(location.hash.replace("#", ""));
-        const search = new URLSearchParams(location.search);
-        return {
-          access_token: hash.get("access_token") || search.get("access_token"),
-          refresh_token:
-            hash.get("refresh_token") || search.get("refresh_token"),
-          error: hash.get("error") || search.get("error"),
-          error_desc:
-            hash.get("error_description") || search.get("error_description"),
-        };
-      }
+	<script>
+	(function () {
+	// ── Extract tokens from URL hash (Supabase implicit flow) or search params ──
+	function getTokens() {
+		const hash   = new URLSearchParams(location.hash.replace('#', ''));
+		const search = new URLSearchParams(location.search);
+		return {
+		access_token:  hash.get('access_token')     || search.get('access_token'),
+		refresh_token: hash.get('refresh_token')    || search.get('refresh_token'),
+		error:         hash.get('error')            || search.get('error'),
+		error_desc:    hash.get('error_description')|| search.get('error_description'),
+		};
+	}
 
-      const tokens = getTokens();
-      const msgEl = document.getElementById("msg");
+	const tokens = getTokens();
+	const msgEl  = document.getElementById('msg');
 
-      if (tokens.error) {
-        msgEl.textContent =
-          "Sign-in error: " + (tokens.error_desc || tokens.error);
-      } else if (tokens.access_token) {
-        const payload = {
-          type: "oauth:callback",
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token || "",
-        };
+	if (tokens.error) {
+		msgEl.textContent = 'Sign-in error: ' + (tokens.error_desc || tokens.error);
+	} 
+	else if (tokens.access_token) {
+		const payload = {
+		type: 'oauth:callback',
+		access_token: tokens.access_token,
+		refresh_token: tokens.refresh_token || '',
+		};
 
-        try {
-          const bc = new BroadcastChannel("ipai_oauth_channel");
-          bc.postMessage(payload);
-          bc.close();
-        } catch (_) {}
+		// ── BroadcastChannel (preferred) ───────────────────────────────────────
+		try {
+		const bc = new BroadcastChannel('ipai_oauth_channel');
+		bc.postMessage(payload);
+		bc.close();
+		} catch (_) {}
 
-        if (window.opener && !window.opener.closed) {
-          try {
-            window.opener.postMessage(payload, location.origin);
-          } catch (_) {}
+		// ── postMessage to opener (popup flow) ─────────────────────────────────
+		if (window.opener && !window.opener.closed) {
+		try {
+			window.opener.postMessage(payload, location.origin);
+		} catch (_) {}
 
-          msgEl.textContent = "Sign-in complete! Closing…";
+		msgEl.textContent = 'Sign-in complete! Closing…';
 
-          setTimeout(() => {
-            try {
-              window.close();
-            } catch (_) {}
-            setTimeout(() => {
-              location.replace("about:blank");
-            }, 200);
-          }, 250);
+		// Give the message a moment to propagate, then close the popup.
+		setTimeout(() => {
+			try { window.close(); } catch (_) {}
+			// Fallback: some browsers block window.close()
+			setTimeout(() => {
+			location.replace('about:blank');
+			}, 200);
+		}, 250);
 
-          return;
-        }
+		return; // VALID NOW — inside IIFE
+		}
 
-        const base = location.pathname.startsWith("/chat/") ? "/chat/" : "/";
-        const url = `${base}?oauth=1&t=${encodeURIComponent(tokens.access_token)}&r=${encodeURIComponent(tokens.refresh_token || "")}`;
-        msgEl.textContent = "Sign-in complete! Redirecting…";
-        location.replace(url);
-      } else {
-        msgEl.textContent = "No token received. You can close this window.";
-      }
-    </script>
+		// ── Same-tab fallback (no popup) ───────────────────────────────────────
+		const base = location.pathname.startsWith('/chat/') ? '/chat/' : '/';
+		const url = `${base}?oauth=1&t=${encodeURIComponent(tokens.access_token)}&r=${encodeURIComponent(tokens.refresh_token || '')}`;
+		msgEl.textContent = 'Sign-in complete! Redirecting…';
+		location.replace(url);
+	} 
+	else {
+		msgEl.textContent = 'No token received. You can close this window.';
+	}
+	})();
+	</script>
+
 
     <script
       src="https://challenges.cloudflare.com/turnstile/v0/api.js"
