@@ -86,6 +86,26 @@ export async function loginWithOAuth(provider) {
     : '/oauth-callback.html';
 
   const redirectTo = `${location.origin}${callbackPath}`;
+  switch (provider) {
+    case "github":
+      break;
+    case "google":
+      break;
+    case "discord":
+      break;
+    case "azure":
+      break;
+    case "custom:huggingface":
+      break;
+    case "microsoft"
+      provider = "azure";
+      break;
+    case "huggingface":
+      provider = "custom:huggingface";
+      break;
+    default:
+      break;
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
