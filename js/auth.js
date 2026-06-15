@@ -105,7 +105,7 @@ export async function loginWithOAuth(provider) {
       break;
     default:
       break;
-
+  }
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
