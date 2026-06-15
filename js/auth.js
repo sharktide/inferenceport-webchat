@@ -97,7 +97,7 @@ export async function loginWithOAuth(provider) {
       break;
     case "custom:huggingface":
       break;
-    case "microsoft"
+    case "microsoft":
       provider = "azure";
       break;
     case "huggingface":

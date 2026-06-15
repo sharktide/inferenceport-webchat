@@ -231,6 +231,14 @@ export function openAuthModal(initialTab = 'signin') {
             <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.02 1.53 7.4 2.8l5.4-5.4C33.52 3.7 29.1 1.5 24 1.5 14.64 1.5 6.58 6.88 2.66 14.7l6.64 5.15C11.2 13.6 17.08 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24c0-1.64-.15-3.22-.43-4.74H24v9h12.7c-.55 2.95-2.21 5.45-4.7 7.12l7.23 5.6C43.38 36.9 46.5 31.1 46.5 24z"/><path fill="#FBBC05" d="M9.3 28.85A14.4 14.4 0 0 1 8.5 24c0-1.68.3-3.3.8-4.85l-6.64-5.15A23.96 23.96 0 0 0 1.5 24c0 3.9.94 7.58 2.66 10.7l6.64-5.15z"/><path fill="#34A853" d="M24 46.5c6.48 0 11.92-2.14 15.9-5.82l-7.23-5.6c-2.01 1.35-4.58 2.15-8.67 2.15-6.92 0-12.8-4.1-14.7-10.05l-6.64 5.15C6.58 41.12 14.64 46.5 24 46.5z"/></svg>
             Continue with Google
           </button>
+          <button class="social-btn" id="microsoft-btn">
+            <svg width="16" height="16" viewBox="0 0 16 16"><rect x="1" y="1" width="6.5" height="6.5" fill="#F25022"/><rect x="8.5" y="1" width="6.5" height="6.5" fill="#7FBA00"/><rect x="1" y="8.5" width="6.5" height="6.5" fill="#00A4EF"/><rect x="8.5" y="8.5" width="6.5" height="6.5" fill="#FFB900"/></svg>
+            Continue with Microsoft
+          </button>
+          <button class="social-btn" id="huggingface-btn">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM5.5 6.5a1 1 0 110-2 1 1 0 010 2zm5 0a1 1 0 110-2 1 1 0 010 2zM8 12c-2.2 0-4-1.5-4-3.5h8c0 2-1.8 3.5-4 3.5z"/></svg>
+            Continue with Hugging Face
+          </button>
         </div>
         <div class="auth-divider">or</div>
         <div class="form-group">
@@ -328,6 +336,30 @@ export function openAuthModal(initialTab = 'signin') {
           const errEl = b.querySelector('#signin-error');
           if (errEl) {
             errEl.textContent = e.message || 'Unable to start Google sign in';
+            errEl.style.display = '';
+          }
+        }
+      });
+      b.querySelector('#microsoft-btn').addEventListener('click', async () => {
+        try {
+          await loginWithOAuth('azure');
+          closeModal();
+        } catch (e) {
+          const errEl = b.querySelector('#signin-error');
+          if (errEl) {
+            errEl.textContent = e.message || 'Unable to start Microsoft sign in';
+            errEl.style.display = '';
+          }
+        }
+      });
+      b.querySelector('#huggingface-btn').addEventListener('click', async () => {
+        try {
+          await loginWithOAuth('huggingface');
+          closeModal();
+        } catch (e) {
+          const errEl = b.querySelector('#signin-error');
+          if (errEl) {
+            errEl.textContent = e.message || 'Unable to start Hugging Face sign in';
             errEl.style.display = '';
           }
         }
