@@ -109,13 +109,10 @@ export async function loginWithOAuth(provider) {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
-      redirectTo,
-      skipBrowserRedirect: true,
+      redirectTo
     },
   });
   if (error) throw new Error(error.message || 'OAuth sign in failed');
-  if (!data?.url) throw new Error('Unable to start OAuth flow');
-  window.open(data.url, '_blank', 'width=520,height=640');
 }
 
 export async function logout() {
