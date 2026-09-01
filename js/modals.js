@@ -236,7 +236,7 @@ export function openAuthModal(initialTab = 'signin') {
             Continue with Microsoft
           </button>
           <button class="social-btn" id="huggingface-btn">
-            🤗 Continue with Hugging Face
+            🤗&nbsp;&nbsp;Continue with Hugging Face
           </button>
         </div>
         <div class="auth-divider">or</div>
