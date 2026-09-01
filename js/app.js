@@ -16,6 +16,15 @@ import {
 
 const MAX_TEXT_UPLOAD_BYTES = 100 * 1024;
 
+(function redirectHostname() {
+  const hostname = window.location.hostname;
+  const officialDomains = ['chat.inferenceport.ai', 'staging.chat.inferenceport.ai'];
+  
+  if (!officialDomains.includes(hostname)) {
+    window.location.host = 'chat.inferenceport.ai';
+  }
+})();
+
 // ── Apply theme immediately from localStorage (no flash) ──────────────────
 (function earlyTheme() {
   try {
