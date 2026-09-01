@@ -236,8 +236,7 @@ export function openAuthModal(initialTab = 'signin') {
             Continue with Microsoft
           </button>
           <button class="social-btn" id="huggingface-btn">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM5.5 6.5a1 1 0 110-2 1 1 0 010 2zm5 0a1 1 0 110-2 1 1 0 010 2zM8 12c-2.2 0-4-1.5-4-3.5h8c0 2-1.8 3.5-4 3.5z"/></svg>
-            Continue with Hugging Face
+            <span style="font-size: 16px; margin-right: 8px;">🤗</span> Continue with Hugging Face
           </button>
         </div>
         <div class="auth-divider">or</div>
